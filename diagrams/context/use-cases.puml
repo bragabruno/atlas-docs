@@ -1,0 +1,42 @@
+@startuml use-cases
+title Atlas Platform — Use Cases
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "RegDoc Analyst" as Analyst
+actor "Prompt Author" as Author
+actor "Platform Admin / Ops" as Admin
+actor "CI / Eval System" as CI
+
+rectangle "Atlas Platform" {
+    usecase "Ask regulatory-doc question\nand receive cited answer" as UC1
+    usecase "Author prompt version" as UC2
+    usecase "Promote prompt\n(eval-gated)" as UC3
+    usecase "Roll back prompt" as UC4
+    usecase "Manage budgets & API keys" as UC5
+    usecase "View cost & latency dashboards" as UC6
+    usecase "Run eval suite" as UC7
+    usecase "Trigger canary deploy" as UC8
+    usecase "Investigate guardrail /\ndrift signals" as UC9
+}
+
+Analyst --> UC1
+
+Author --> UC2
+Author --> UC3
+Author --> UC4
+
+Admin --> UC5
+Admin --> UC6
+Admin --> UC9
+
+CI --> UC7
+CI --> UC8
+CI --> UC9
+
+UC3 ..> UC7 : <<include>>\nrequires eval pass
+UC8 ..> UC7 : <<include>>\nrequires eval pass
+
+@enduml

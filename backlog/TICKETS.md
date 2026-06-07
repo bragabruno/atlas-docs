@@ -27,7 +27,7 @@ Following the framework evaluation (`../research/framework-evaluation.md`), thes
   - `type:feature | chore | spike | docs | test`
   - `repo:atlas-docs | atlas-gateway | atlas-agent-runtime | atlas-mcp-doc-search | atlas-mcp-citations | atlas-frontend | atlas-infra | atlas-prompts` (`repo:all` = cross-cutting template applied to every repo)
 - **Global Definition of Done (Python repos):** ruff + pyright(strict) clean · pytest passing (offline via `MockProvider`/fakeredis) · no secrets in code/images/tests · pinned deps (≥14 days old) · small reviewable diff.
-- **Global Definition of Done (atlas-frontend):** eslint + `tsc --noEmit` clean · unit tests (Jest/Karma) passing · no hardcoded keys/secrets · TS API types generated from the gateway OpenAPI spec (not hand-written).
+- **Global Definition of Done (atlas-frontend):** eslint + `tsc --noEmit` clean · unit tests (Vitest — ADR-018) passing · no hardcoded keys/secrets · TS API types generated from the gateway OpenAPI spec (not hand-written).
 
 **Epic summary**
 
@@ -120,9 +120,9 @@ Deploy OTel Collector (Deployment/DaemonSet) exporting traces/metrics/logs to Sp
 MLflow tracking server on AKS, backing store in Azure PG, artifacts in Blob.
 **Done when:** MLflow UI reachable; a test run logs params/metrics/artifacts.
 
-### INF-15 — Umbrella dev loop (Skaffold/Tilt) + placeholder gateway
-`area:cicd · type:feature · phase:p0 · repo:atlas-infra · Points: 5 · Depends on: INF-5, INF-9`
-An **umbrella** Skaffold/Tilt config in atlas-infra that builds each service from its repo → ACR → Helm upgrade → dev namespace (file-sync), referencing the per-service `deploy/` charts. Includes a base gateway placeholder serving a healthcheck behind ingress.
+### INF-15 — Umbrella dev loop (Skaffold) + placeholder gateway
+`area:cicd · type:feature · phase:p0 · repo:atlas-infra · Points: 5 · Depends on: INF-5, INF-9 · ADR-019`
+An **umbrella** Skaffold config in atlas-infra that builds each service from its repo → ACR → Helm upgrade → dev namespace (file-sync), referencing the per-service `deploy/` charts. Includes a base gateway placeholder serving a healthcheck behind ingress.
 **Done when:** editing a service file auto-redeploys it; placeholder gateway reachable via ingress URL; the loop spans the multiple repos.
 
 ### INF-16 — Env composition + one-command up + cost controls
@@ -482,7 +482,7 @@ Thin FastAPI surface: `POST /v1/agent/runs` (start) + `GET /v1/agent/runs/{id}` 
 
 ### FE-1 — Angular scaffold + tooling + CI
 `area:frontend · type:chore · phase:p1 · repo:atlas-frontend · Points: 3 · Depends on: INF-2`
-Angular workspace, eslint + prettier, `tsc --noEmit`, Jest/Karma, environment config; CI (INF-2 frontend variant) green.
+Angular workspace, eslint + prettier, `tsc --noEmit`, **Vitest** (ADR-018), environment config; CI (INF-2 frontend variant) green.
 **Done when:** app builds; lint/typecheck/tests run clean in CI.
 
 ### FE-2 — Config + AuthInterceptor (no hardcoded keys)

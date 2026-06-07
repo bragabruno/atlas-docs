@@ -25,7 +25,7 @@ Build the **keystone first** (the gateway — everything depends on it), insert 
 
 ### P0 — Infra foundation (epic `INF`)
 **Goal:** a reproducible Azure footprint and an AKS-only dev loop, with all platform dependencies running.
-**Deliverables:** Terraform (azurerm) modules — network, AKS (+ Workload Identity), identity, secrets (Key Vault + CSI), data (Azure PostgreSQL Flexible Server + Redis), storage (Blob + ACR); Qdrant, Kafka (topics created), Elasticsearch, MLflow, and the OTel Collector→Splunk pipeline deployed; Bitbucket Pipelines PR pipeline green; Skaffold/Tilt dev loop; Terraform state backend in Azure Storage.
+**Deliverables:** Terraform (azurerm) modules — network, AKS (+ Workload Identity), identity, secrets (Key Vault + CSI), data (Azure PostgreSQL Flexible Server + Redis), storage (Blob + ACR); Qdrant, Kafka (topics created), Elasticsearch, MLflow, and the OTel Collector→Splunk pipeline deployed; Bitbucket Pipelines PR pipeline green; Skaffold dev loop (ADR-019); Terraform state backend in Azure Storage.
 **Demo:** `make cloud-up ENV=dev` → `kubectl get nodes` ready → a placeholder gateway pod reachable via ingress; `terraform plan` clean.
 **Exit criteria:** one-command up; CI green on an empty `MockProvider`; all data services reachable in-cluster.
 

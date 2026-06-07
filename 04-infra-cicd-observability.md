@@ -399,9 +399,9 @@ canary:
 
 The dev loop runs entirely against AKS dev namespace — no local compose stack.
 
-The **umbrella Skaffold/Tilt config lives in `atlas-infra`**. It references each service repo's source directory as a build context and each service's own `deploy/` chart. `make cloud-up ENV=dev` (also in `atlas-infra`) deploys all services from published ACR images without a local build.
+The **umbrella Skaffold config lives in `atlas-infra`** (Skaffold is the chosen dev-loop tool — see ADR-019). It references each service repo's source directory as a build context and each service's own `deploy/` chart. `make cloud-up ENV=dev` (also in `atlas-infra`) deploys all services from published ACR images without a local build.
 
-#### Option A: Skaffold
+#### Skaffold (chosen — ADR-019)
 
 ```yaml
 # atlas-infra/skaffold.yaml (illustrative — umbrella across all service repos)
@@ -463,7 +463,7 @@ profiles:
 
 Run: `skaffold dev --profile=dev --namespace=atlas-dev`
 
-#### Option B: Tilt
+#### Alternative considered: Tilt (not adopted — see ADR-019)
 
 ```python
 # atlas-infra/Tiltfile (illustrative)

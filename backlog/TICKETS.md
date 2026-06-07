@@ -2,6 +2,10 @@
 
 This is the complete ticket breakdown for Atlas. Each **epic** maps to a phase in [`../06-roadmap-and-milestones.md`](../06-roadmap-and-milestones.md); each **story** below becomes one Linear issue under its epic.
 
+## Changes in this revision (framework adoption — ADR-016…020, 2026-06-07)
+
+Following the framework evaluation (`../research/framework-evaluation.md`), these decisions are ratified and reflected below: **layered architecture + DI** (ADR-016, new **GW-22** — done), **DeepEval** metrics for the eval gate (ADR-017, REG-8), **Angular Signals + Vitest** for the frontend (ADR-018, FE-1/FE-5), **Skaffold** umbrella dev-loop + `terraform test`/Checkov/TFLint/Trivy (ADR-019, INF-15), and a **FastAPI trigger surface** for the agent runtime (ADR-020, new **AGT-16**). Hand-rolled agent loop reaffirmed (ADR-006) with **Pydantic AI** as the sanctioned fallback.
+
 ## Changes in this revision (polyrepo / frontend / diagrams reconciliation)
 
 - **Polyrepo:** every story now carries a `repo:` tag. The monorepo `INF-1` is reframed as per-repo scaffolding; CI is per-repo (a shared template).
@@ -30,15 +34,15 @@ This is the complete ticket breakdown for Atlas. Each **epic** maps to a phase i
 | Epic | Phase | Title | Primary repo(s) | Stories | Points |
 |---|---|---|---|---|---|
 | `INF` | P0 | Infra foundation (Azure/AKS) | atlas-infra (+all) | 16 | 71 |
-| `GW` | P1 | LLM Gateway core | atlas-gateway | 21 | 89 |
+| `GW` | P1 | LLM Gateway core | atlas-gateway | 22 | 92 |
 | `REG` | P2 | Prompt registry + eval gate | atlas-prompts (+gateway) | 14 | 64 |
 | `GRD` | P3 | Guardrails | atlas-gateway | 12 | 49 |
-| `AGT` | P4 | Agent runtime + MCP | atlas-agent-runtime, atlas-mcp-* | 15 | 78 |
+| `AGT` | P4 | Agent runtime + MCP | atlas-agent-runtime, atlas-mcp-* | 16 | 80 |
 | `FE` | P1→P4 | Frontend (RegDoc Q&A app) | atlas-frontend | 9 | 27 |
 | `POL` | P5 | Polish | atlas-gateway, atlas-infra | 7 | 36 |
 | `XCUT` | — | Cross-cutting / hardening | atlas-docs, all | 6 | 20 |
 
-**Totals: 100 stories · ~434 points.** Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21` (gateway online with Mock + published contract), then `REG` (the eval-gate demo). The basic chat UI (`FE-1..FE-5`) can start once `GW-7` (SSE) lands.
+**Totals: 102 stories · ~439 points.** Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21` (gateway online with Mock + published contract), then `REG` (the eval-gate demo). The basic chat UI (`FE-1..FE-5`) can start once `GW-7` (SSE) lands.
 
 ---
 
@@ -236,6 +240,11 @@ End-to-end tests via Mock + a load test asserting <50ms p95 gateway overhead.
 `area:gateway · type:feature · phase:p1 · repo:atlas-gateway · Points: 3 · Depends on: GW-6, GW-8`
 Publish the gateway's OpenAPI spec as the cross-repo contract; generate a TS types package (consumed by atlas-frontend) and a Python client (consumed by atlas-agent-runtime + atlas-prompts eval-runner). CI fails if the committed spec drifts from the code.
 **Done when:** the spec is published as a build artifact; TS + Python clients generate from it; a drift check guards the spec in CI.
+
+### GW-22 — Layered architecture + DI skeleton
+`area:gateway · type:chore · phase:p1 · repo:atlas-gateway · Points: 3 · Depends on: GW-6 · ADR-016`
+Layered service spine (api → services → repositories → domain) + FastAPI `Depends` DI (`api/deps.py`) + `providers/registry.py`; capability modules as adapters the service layer composes. Canonical reference for every Python service; behavior-preserving. *(Done — gateway refactored, 14 tests green; BRA-872.)*
+**Done when:** gateway follows api/services/repositories/domain; DI via deps.py; `UnknownModelError`→404 in the controller; tests green (ruff + pyright strict + pytest).
 
 ---
 
@@ -460,6 +469,11 @@ Tests for cited answer, refusal on unanswerable, runaway-cap, whitelist rejectio
 Scripted end-to-end demo + README (cited answer, refusal, runaway, trace).
 **Done when:** the demo runs and is documented.
 
+### AGT-16 — Agent-runtime FastAPI trigger surface
+`area:agent · type:feature · phase:p4 · repo:atlas-agent-runtime · Points: 2 · Depends on: AGT-3 · ADR-020`
+Thin FastAPI surface: `POST /v1/agent/runs` (start) + `GET /v1/agent/runs/{id}` (poll status/result). Closes the gap that the runtime had no surface to receive a run request; reuses the layered convention (ADR-016) + OpenAPI contract (ADR-014). Async Kafka invocation (`atlas.agent.requests.v1`) deferred. *(BRA-873.)*
+**Done when:** a run starts + polls over HTTP; OpenAPI spec published; offline test via Mock; hard caps (ADR-006) still enforced.
+
 ---
 
 ## EPIC `FE` — Frontend: RegDoc Q&A app · phase:p1→p4 · repo:atlas-frontend
@@ -589,4 +603,4 @@ CI step that validates Mermaid (mermaid-cli) and PlantUML diagrams render, in at
 ---
 
 ### Totals
-**100 stories · ~434 points** across 7 phase/area epics + cross-cutting, mapped over 8 repos. Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21`, then `REG` (the eval-gate demo). The chat UI (`FE-1..FE-5`) can begin as soon as `GW-7` lands.
+**102 stories · ~439 points** across 7 phase/area epics + cross-cutting, mapped over 8 repos. Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21`, then `REG` (the eval-gate demo). The chat UI (`FE-1..FE-5`) can begin as soon as `GW-7` lands.

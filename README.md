@@ -10,12 +10,13 @@ Demo workload: a **regulatory-document Q&A agent** (RAG with enforced citations)
 |---|---|---|
 | 00 | [Overview, Goals & Requirements](00-overview-goals-requirements.md) | Vision, why-this-stack, goals/non-goals, FR/NFR, high-level diagram, request flows, demo workload, glossary |
 | 01 | [System Architecture](01-system-architecture.md) | Component catalogue, AKS container diagram, chat + agent sequence diagrams, data flows, control vs data plane |
-| 02 | [Tech Stack & ADRs](02-tech-stack-and-adrs.md) | Full stack table, versioning policy, ADR-001…012 (build-vs-adopt, Python, Azure, Qdrant, hybrid retrieval, hand-rolled loop, Kafka, MLflow, OTel→Splunk, …) |
+| 02 | [Tech Stack & ADRs](02-tech-stack-and-adrs.md) | Full stack table, versioning policy, ADR-001…020 (build-vs-adopt, Python, Azure, Qdrant, hybrid retrieval, hand-rolled loop, Kafka, MLflow, OTel→Splunk, layered architecture+DI, eval stack, frontend state+Vitest, infra dev-loop+TF testing, agent invocation) |
 | 03 | [Data Model & Contracts](03-data-model-and-contracts.md) | Postgres DDL (10 tables), Qdrant collections, Kafka topic schemas, gateway OpenAI-compatible API, MCP tool contracts, cost formula |
-| 04 | [Infra, CI/CD & Observability](04-infra-cicd-observability.md) | Azure topology, Terraform modules, Workload Identity + Key Vault CSI, Helm + Skaffold/Tilt dev loop, Bitbucket three gates, OTel→Splunk, MLflow |
+| 04 | [Infra, CI/CD & Observability](04-infra-cicd-observability.md) | Azure topology, Terraform modules, Workload Identity + Key Vault CSI, Helm + Skaffold dev loop, Bitbucket three gates, OTel→Splunk, MLflow |
 | 05 | [Guardrails & Security](05-guardrails-and-security.md) | Guardrail chain, PII/injection/citation enforcement, threat model, failure-modes table, secrets & tenant isolation |
 | 06 | [Roadmap & Milestones](06-roadmap-and-milestones.md) | Phases P0–P5, dependency DAG, milestones M1–M6 |
-| — | [Backlog (Linear-ready)](backlog/TICKETS.md) | 89 stories across 6 phase-epics + cross-cutting; acceptance criteria, estimates, dependencies, labels |
+| — | [Framework Evaluation](research/framework-evaluation.md) | Evidence-based framework selection across all 8 repos — Enhesa current stack (live JDs), build-vs-adopt frontier, per-repo recommendations → ADR-016…020 |
+| — | [Backlog (Linear-ready)](backlog/TICKETS.md) | 100 stories across 6 phase-epics + cross-cutting; acceptance criteria, estimates, dependencies, labels |
 
 ## Reading order
 
@@ -25,7 +26,7 @@ Demo workload: a **regulatory-document Q&A agent** (RAG with enforced citations)
 
 ## Key locked decisions
 
-Python 3.12 + asyncio · **Azure/AKS (full Enhesa mirror)** · hand-built OpenAI-compatible gateway · Qdrant + Elasticsearch hybrid retrieval · Kafka event bus · MLflow · OpenTelemetry → Splunk · OpenAI + Anthropic + Google (Gemini) + MockProvider · Bitbucket Pipelines three-gate CI/CD (tests / evals / canary) · AKS-only dev loop (Skaffold/Tilt). See [02-tech-stack-and-adrs.md](02-tech-stack-and-adrs.md) for rationale.
+Python 3.12 + asyncio · **Azure/AKS (full Enhesa mirror)** · hand-built OpenAI-compatible gateway · layered service architecture + DI (ADR-016) · Qdrant + Elasticsearch hybrid retrieval · Kafka event bus · MLflow + DeepEval eval gate · OpenTelemetry → Splunk · OpenAI + Anthropic + Google (Gemini) + MockProvider · Angular + Vitest + Signals frontend · Bitbucket Pipelines three-gate CI/CD (tests / evals / canary) · AKS-only dev loop (Skaffold). See [02-tech-stack-and-adrs.md](02-tech-stack-and-adrs.md) for rationale.
 
 ## Status
 

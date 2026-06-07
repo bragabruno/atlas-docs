@@ -1,7 +1,7 @@
 # 02 — Tech Stack & Architecture Decision Records
 
 > **Status:** Living document — update when a technology choice changes or a new ADR is ratified.
-> **Last reviewed:** 2026-06-06
+> **Last reviewed:** 2026-06-07
 
 ---
 
@@ -12,7 +12,8 @@
 | **Language & runtime** | Python 3.12 + asyncio | Literal match for Enhesa AI microservices team; I/O-bound LLM proxy workload; see Language Note below | Yes |
 | **Linting / type checking** | ruff + pyright (strict) | Fast, zero-config ruff replaces flake8+isort+black; pyright strict catches protocol mismatches at CI time | Yes |
 | **Testing** | pytest + pytest-asyncio + pytest-cov | Standard async-aware test stack; coverage enforced in CI | Yes |
-| **API framework** | FastAPI + Uvicorn | ASGI, automatic OpenAPI, dependency injection; gunicorn + uvicorn workers in K8s for multi-core fan-out | Yes |
+| **API framework** | FastAPI + Uvicorn | ASGI, automatic OpenAPI, `Depends` DI; layered architecture per ADR-016; gunicorn + uvicorn workers in K8s for multi-core fan-out | Yes |
+| **Service architecture** | Layered + DI (controllers → services → repositories → domain) | "Spring-style" separation via FastAPI `Depends`, no heavyweight framework; see ADR-016 | n/a (internal) |
 | **Data validation / settings** | pydantic v2 + pydantic-settings | First-class async support, model-level validation, settings from env/Key Vault | Yes |
 | **DB driver — hot path** | asyncpg | Native asyncio PostgreSQL driver; zero ORM overhead on the gateway hot path | Yes |
 | **ORM — registry / eval / runs** | SQLAlchemy 2.0 async | Full async session API; used outside the hot path where rich query composition matters | Yes |
@@ -23,22 +24,25 @@
 | **Search** | Elasticsearch | Hybrid BM25 (keyword) + Qdrant vector rerank for doc-search; also used for log search | Yes |
 | **Event bus** | Kafka | Topics: `atlas.calls.v1`, `atlas.spans.v1`, `atlas.shadow.v1`, `atlas.eval.requests.v1`; see ADR-007 | Yes |
 | **Eval / experiment tracking** | MLflow | Tracks model-comparison experiments, eval runs, prompt versions; see ADR-008 | Yes |
+| **Eval framework** | DeepEval (metrics) + custom `gate.py` | Adopt commodity metrics (semantic match, citation validity, LLM-as-judge); own the gate/promotion; see ADR-017 | New (greenfield) |
 | **Observability** | OpenTelemetry SDK → OTel Collector → Splunk | GenAI semantic conventions; traces, metrics, logs all flow through OTel Collector; see ADR-009 | Yes |
 | **LLM providers** | OpenAI + Anthropic + Google (Gemini) via Provider Protocol + MockProvider | Multi-vendor resilience; real keys in prod, mock fallback for offline/CI; see ADR-012 | Yes |
 | **Model IDs (authoritative)** | `claude-opus-4-8` · `claude-sonnet-4-6` · `claude-haiku-4-5` · `gpt-4.1` · `gemini-*` | See token/pricing table below; never inferred from tiktoken | Yes |
 | **Retry / backoff** | tenacity | Per-call retry with jitter; composable decorators | Yes |
 | **Circuit breaker** | Hand-rolled Redis-backed per-provider | Shared state across replicas via Redis; see ADR-011 | Yes |
-| **Agent MCP SDK** | Official Python `mcp` SDK | First-party protocol implementation; no vendored fork | Yes |
+| **Agent / MCP SDK** | Official Python `mcp` SDK (FastMCP) | First-party protocol; FastMCP server interface + Streamable HTTP transport; no vendored fork | Yes |
+| **Agent invocation** | FastAPI trigger surface (`POST /v1/agent/runs`) | Synchronous run trigger for atlas-agent-runtime; Kafka consumer later; see ADR-020 | n/a (internal) |
 | **Container registry** | Azure Container Registry (ACR) | Geo-replicated; integrated with AKS pull identity | Yes |
 | **Kubernetes** | AKS | Managed control plane; Workload Identity for pod-level Azure RBAC | Yes |
 | **Secrets** | Azure Key Vault + Secrets Store CSI driver | Secrets mounted as volumes; no env-var injection of plaintext secrets | Yes |
 | **IaC** | Terraform (azurerm) + Azure Storage state backend | Declarative infra; remote state with lock | Yes |
+| **IaC testing / policy** | `terraform test` + Checkov + TFLint + Trivy | Native HCL module tests + security/compliance scan + lint; see ADR-019 | New (greenfield) |
 | **CI/CD** | Bitbucket Pipelines | Org-standard; pipeline definitions live in the repo | Yes |
 | **Helm** | Helm (pinned chart versions) | Kubernetes release management; values per environment | Yes |
 | **Progressive delivery** | Argo Rollouts / Flagger | Canary deployments with automated metric-based promotion/rollback | Yes |
-| **Local dev loop** | Skaffold / Tilt | AKS-only dev loop; no local Docker Compose target | Yes |
+| **Local dev loop** | Skaffold (umbrella) | AKS-only dev loop, Helm-native, parallels the Argo/Helm CD path; Tilt evaluated (richer DX) — see ADR-019; no local Docker Compose target | Yes |
 | **Object storage** | Azure Blob Storage | Artefacts, eval datasets, prompt snapshots | Yes |
-| **Frontend** | Angular + TypeScript (`atlas-frontend`) | Mirrors Enhesa's frontend stack; TS API types generated from the gateway OpenAPI spec — no hand-written client models | Yes |
+| **Frontend** | Angular + TypeScript (`atlas-frontend`) | Mirrors Enhesa; **Vitest** test runner (Karma EOL) + **Angular Signals** service-store state per ADR-018; TS API types generated from the gateway OpenAPI spec | Yes |
 
 ### Model Token & Pricing Reference
 
@@ -208,6 +212,7 @@ Build a thin, hand-rolled agent loop. No LangGraph dependency.
 **Alternatives considered:**
 - LangGraph: rich primitives, but abstractions hide failure paths; framework upgrades have historically introduced breaking changes in the agent graph API.
 - LlamaIndex agent runtime: similar trade-offs to LangGraph; not in Enhesa's stack.
+- **Pydantic AI** (sanctioned fallback): type-safe agents with built-in OpenTelemetry instrumentation, composing with the existing pydantic v2 + OTel stack. Unlike LangGraph it does not hide failure modes. **If the hand-rolled loop's ~2-sprint-week cost is not affordable, adopt Pydantic AI rather than LangGraph** — it preserves inspectability while removing the build cost. Re-evaluated 2026-06-07 against the current agent-framework landscape (see `research/framework-evaluation.md` §5.3); decision to hand-roll reaffirmed for the portfolio thesis.
 
 ---
 
@@ -408,6 +413,118 @@ Three structural concerns span multiple repos and needed an explicit ownership d
 **Alternatives considered:**
 - Fold prompts/evals into `atlas-agent-runtime`: co-location is convenient but conflates deployment lifecycle of the runtime service with the eval cadence of prompt/agent changes.
 - Centralise all Helm charts in `atlas-infra`: simpler chart discovery but removes the "each service deploys itself" property that mirrors Enhesa's team autonomy model.
+
+---
+
+### ADR-016 Layered Service Architecture + Dependency Injection (per Python service)
+
+**Status:** Accepted (2026-06-07)
+
+**Context:**
+The gateway began as a flat package where the route handler mixed HTTP parsing, business logic, and provider calls. As guardrails (GRD-*), the prompt-registry runtime (REG-*), accounting, and routing land, that flat shape does not scale and is hard to test in isolation. The question raised was whether to adopt a heavier opinionated framework ("Spring Boot for Python" — Litestar/Django) for structure. The framework evaluation (`research/framework-evaluation.md`) found the organization problem is solved by an internal layering convention, not by changing frameworks.
+
+**Decision:**
+Adopt a layered spine in every Python service: **`api/` (controllers) → `services/` (use-cases) → `repositories/` (persistence) → `domain/` (framework-free contracts)**, with the capability modules (`providers/`, `cache/`, `limits/`, `guardrails/`, …) as adapters the service layer composes. FastAPI's `Depends` is the DI container; `api/deps.py` is the request-scope composition root. HTTP shape lives only in `api/`; business logic only in `services/`; DB access only in `repositories/`; domain types carry no framework import. Controllers raise no business logic; services raise domain errors (e.g. `UnknownModelError`) that controllers map to HTTP.
+
+**Consequences:**
+- Clear separation + testability: services are unit-testable without HTTP; contract tests at the controller stay stable across internal refactors (the gateway refactor that introduced this kept all 14 tests green).
+- The wave-1 "module-first, wire-later" plan is clean — cache (GW-13) and guardrails (GRD-1) land as adapters and wire into `services/`, never the controller.
+- No new dependency — `Depends` is already present; "Spring-style" separation with zero framework magic.
+- A convention engineers must follow; enforced by review and the package layout, not by a tool.
+
+**Alternatives considered:**
+- Litestar: opinionated layered controllers + DI, but smaller ecosystem and higher hiring risk; off the FastAPI/Enhesa mirror.
+- Django/DRF: batteries-included but sync-first; wrong grain for the async LLM proxy.
+- Stay flat: simplest now, unmaintainable as guardrails/registry/accounting accrue.
+
+---
+
+### ADR-017 Eval Stack — DeepEval Metrics + Custom Gate
+
+**Status:** Accepted (2026-06-07)
+
+**Context:**
+`atlas-prompts` runs the eval-gate (Gate 2) that blocks any prompt/agent promotion on a regression. The metrics it needs — exact/semantic match, citation validity, faithfulness, LLM-as-judge — are now commodity in 2026 eval frameworks (DeepEval, promptfoo, Ragas). The decision is build-vs-adopt for the *metrics*, separate from the *gate* itself.
+
+**Decision:**
+Adopt **DeepEval** for the metric implementations (it carries 50+ metrics incl. citation/faithfulness and is built for CI gates over agents/multi-turn). Keep a **thin custom `gate.py`** for the Atlas-specific logic — baseline comparison, blocking-vs-advisory split, and server-side promotion enforcement (REG-13). Eval runs continue to log to MLflow (ADR-008). promptfoo may be added later for adversarial/red-team matrices.
+
+**Consequences:**
+- Far less code than a fully hand-rolled metric suite; the gate/promotion (the Atlas IP) stays owned.
+- Judge-model token cost (~$200–600/mo at 10k traces/day per 2026 benchmarks) is a real operating cost — watch it on the nightly drift eval (POL-3); cap sample sizes.
+- A new dependency (DeepEval) in `atlas-prompts`, pinned ≥14 days old per policy.
+
+**Alternatives considered:**
+- Fully custom runner: maximal "I built it" story, but reinvents commodity metrics and is more to maintain.
+- promptfoo as the primary gate: declarative YAML, strong red-team, but a non-Python idiom and less bespoke metric control.
+- Ragas: RAG-only; useful as a supplementary retrieval-quality dashboard, not the gate.
+
+---
+
+### ADR-018 Frontend State (Angular Signals) + Vitest Test Runner
+
+**Status:** Accepted (2026-06-07)
+
+**Context:**
+`atlas-frontend` (Angular + TypeScript) left two choices open: state management ("service-store or NgRx") and test runner ("Karma/Jest"). Both sit in fast-moving areas; the framework evaluation gathered current (2026) evidence.
+
+**Decision:**
+- **Test runner: Vitest.** With Angular 21 (late 2025) Vitest is the CLI default and is "stable and production-ready"; Karma is deprecated (no new features/bugfixes) and Jest support is experimental/frozen. New specs are authored for Vitest; the README's "Karma/Jest" is superseded.
+- **State: Angular Signals service-store.** Right-sized for the app (chat + citations + cost), modern default, least boilerplate. NgRx SignalStore is the sanctioned step-up if shared cross-module state or stronger debugging tooling is later needed; classic NgRx is not adopted (overkill at this size).
+
+**Consequences:**
+- Near-instant test feedback (Vite) vs Karma's browser boot; tests run in Node (jsdom) or real browsers via Playwright.
+- Minimal state boilerplate now, with a documented upgrade path to NgRx SignalStore.
+- Component tests must be authored/migrated to the Vitest API.
+
+**Alternatives considered:**
+- Keep Karma: deprecated, slow, no future.
+- Jest: viable but its Angular support is experimental and frozen; Vitest is the endorsed direction.
+- Classic NgRx (actions/reducers/effects): canonical but heavy for this app; deferred.
+
+---
+
+### ADR-019 Infra Inner Dev-Loop (Skaffold) + Terraform Testing/Policy
+
+**Status:** Accepted (2026-06-07)
+
+**Context:**
+`atlas-infra` left the umbrella dev-loop tool open ("Skaffold / Tilt", INF-15) and specified no Terraform testing/policy tooling.
+
+**Decision:**
+- **Dev-loop: Skaffold.** Helm-native and declarative, paralleling the Argo Rollouts/Helm CD path for the multi-repo build → ACR → Helm → AKS umbrella loop. (Tilt offers richer inner-loop DX via live file-sync + a service dashboard and remains a defensible alternative if inner-loop speed outweighs CD parity.)
+- **Terraform testing/policy:** native **`terraform test`** (1.6+, HCL, no deploy) for module-logic validation; **Checkov** for security/compliance (CIS/GDPR/PCI; also scans Helm/K8s; Python-native, matches the team language); **TFLint** as the linter; **Trivy** (`trivy config`) for IaC scanning (the maintained successor to tfsec). **Terratest** (Go) is reserved for the top 1–2 critical modules only, to avoid a Go-language barrier in a Python shop.
+
+**Consequences:**
+- The inner loop mirrors the CD path, so "works in dev" tracks "works in canary."
+- IaC is gated in CI on both correctness (`terraform test`) and security (Checkov/Trivy) without introducing Go for the common case.
+- Two scanners (Checkov + Trivy) overlap somewhat; accepted for coverage breadth, deduped in triage.
+
+**Alternatives considered:**
+- Tilt: better DX, but more imperative Starlark config and less aligned with the declarative Helm/Argo pipeline.
+- tfsec: folded into Trivy; "no reason to start a new pipeline on tfsec in 2026."
+- Terratest as the primary test tool: powerful but requires Go and real deploys — overkill for module-logic checks.
+
+---
+
+### ADR-020 Agent-Runtime Invocation Surface — FastAPI Trigger (Kafka Later)
+
+**Status:** Accepted (2026-06-07)
+
+**Context:**
+`atlas-agent-runtime`'s module map (loop, tools, persistence, gateway/MCP clients) had **no surface that receives a run request** — a gap surfaced by the framework evaluation. A caller (frontend via gateway, or an operator) needs a way to start a RegDoc agent run.
+
+**Decision:**
+Expose a thin **FastAPI** trigger surface in the runtime (`POST /v1/agent/runs` to start a run, `GET /v1/agent/runs/{id}` to poll status/result), reusing the same layered convention (ADR-016) and OpenAPI-contract approach (ADR-014). Asynchronous invocation via a Kafka consumer (off a new `atlas.agent.requests.v1` topic) is deferred to when batch/eval-triggered runs are needed.
+
+**Consequences:**
+- Consistent with every other Python HTTP service (FastAPI), and the run API is codegen-friendly for consumers.
+- Synchronous-first keeps Phase 1 simple; the loop still enforces hard caps (ADR-006) so a long run can't hang a request indefinitely (it fails at the wall-time cap).
+- Adds a new ticket (AGT trigger-surface) and a `agent.requests` topic to the Kafka plan when the async path lands.
+
+**Alternatives considered:**
+- Kafka-only invocation now: better decoupling, but no synchronous request/response for the demo UI and more moving parts in Phase 1.
+- Invoke the runtime as an in-process library from the gateway: couples two deployables and breaks the per-service autonomy of the polyrepo (ADR-013).
 
 ---
 

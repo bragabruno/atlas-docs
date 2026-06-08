@@ -42,4 +42,13 @@ Python 3.12 + asyncio · **Azure/AKS (full Enhesa mirror)** · hand-built OpenAI
 
 ## Status
 
-Architecture + backlog drafted. **Next:** on approval of `backlog/TICKETS.md`, the epics/stories are created as Linear issues (with labels, estimates, and dependency links). No code yet.
+Architecture, backlog, and initial build complete through **P3 (Guardrails)**; P4 (Agent runtime + MCP) and P5 (Polish) in progress.
+
+**Shipped (code exists and tests pass):**
+- `atlas-gateway` — layered FastAPI service (api/services/repositories/domain + DI); all four providers (Anthropic, OpenAI, Google, MockProvider); `/v1/chat/completions` (stream + non-stream), `/v1/models`, `/v1/embeddings`; alias routing; tenacity retry + Redis-backed per-provider circuit breaker; exact-match cache (Redis); per-key token-bucket rate limit + monthly budget → 429; accounting → Kafka `atlas.calls.v1`; OTel GenAI spans; prompt registry (resolver + promotion state machine + eval-gated promotion); full guardrail chain — PII regex (GRD-2), PII NER stand-in (GRD-3), injection heuristics (GRD-4), injection classifier via gateway (GRD-5), tool-output sanitization (GRD-6), size caps (GRD-7), JSON-schema repair (GRD-8), citation enforcement stub (GRD-9), content policy (GRD-10), per-check OTel metrics (GRD-11). 35 test files, offline via MockProvider + fakeredis.
+- `atlas-agent-runtime` — bounded loop (AGT-3) with hard iteration/token/wall-time caps; AgentSpec YAML model; ToolRegistry whitelist enforcement (AGT-4); ToolSanitizer (AGT-5); run/step persistence + resume (AGT-6); OTel agent spans (AGT-7). FastAPI trigger surface (AGT-16) defined in deploy chart; app/api/ not yet coded.
+- `atlas-mcp-doc-search` — MCP server with hybrid ES BM25 + Qdrant vector retrieval, RRF fusion, ingestion pipeline.
+- `atlas-mcp-citations` — MCP server with ES + Qdrant corpus lookup for citation verification.
+- `atlas-prompts` — eval runner, LLM-as-judge, gate comparator, golden datasets, Alembic eval schema.
+- `atlas-frontend` — Angular + TypeScript RegDoc Q&A app; chat module, state store, gateway service + SSE client, usage module, Helm chart.
+- `atlas-infra` — Terraform modules (network, aks, data, storage, identity, secrets); platform Helm charts (qdrant, kafka, elasticsearch, mlflow, otel-collector, cost-controls); Skaffold umbrella dev loop; Makefile one-command up/down/destroy.

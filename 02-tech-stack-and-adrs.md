@@ -1,7 +1,7 @@
 # 02 — Tech Stack & Architecture Decision Records
 
 > **Status:** Living document — update when a technology choice changes or a new ADR is ratified.
-> **Last reviewed:** 2026-06-07
+> **Last reviewed:** 2026-06-08
 
 ---
 
@@ -34,7 +34,7 @@
 | **Agent invocation** | FastAPI trigger surface (`POST /v1/agent/runs`) | Synchronous run trigger for atlas-agent-runtime; Kafka consumer later; see ADR-020 | n/a (internal) |
 | **Container registry** | Azure Container Registry (ACR) | Geo-replicated; integrated with AKS pull identity | Yes |
 | **Kubernetes** | AKS | Managed control plane; Workload Identity for pod-level Azure RBAC | Yes |
-| **Secrets** | Azure Key Vault + Secrets Store CSI driver | Secrets mounted as volumes; no env-var injection of plaintext secrets | Yes |
+| **Secrets** | Doppler (dev/CI authoring) → Azure Key Vault + Secrets Store CSI (AKS runtime) | Doppler injects env vars locally/CI and syncs to Key Vault; pods mount via CSI + Workload Identity (runtime store of record); see ADR-021 | Yes (Key Vault runtime); Doppler is an added dev/CI plane |
 | **IaC** | Terraform (azurerm) + Azure Storage state backend | Declarative infra; remote state with lock | Yes |
 | **IaC testing / policy** | `terraform test` + Checkov + TFLint + Trivy | Native HCL module tests + security/compliance scan + lint; see ADR-019 | New (greenfield) |
 | **CI/CD** | Bitbucket Pipelines | Org-standard; pipeline definitions live in the repo | Yes |
@@ -525,6 +525,48 @@ Expose a thin **FastAPI** trigger surface in the runtime (`POST /v1/agent/runs` 
 **Alternatives considered:**
 - Kafka-only invocation now: better decoupling, but no synchronous request/response for the demo UI and more moving parts in Phase 1.
 - Invoke the runtime as an in-process library from the gateway: couples two deployables and breaks the per-service autonomy of the polyrepo (ADR-013).
+
+---
+
+### ADR-021 Doppler for Developer + CI Secrets; Azure Key Vault for AKS Runtime
+
+**Status:** Accepted (2026-06-08)
+
+**Context.**
+Atlas mirrors the target company's stack (Azure / AKS), so the runtime secret store was
+already fixed as **Azure Key Vault + Secrets Store CSI driver**, accessed via Workload
+Identity (ADR-003 + §1 stack table; INF-7 ticket). In code today, secrets are plain
+environment variables read by pydantic-settings — no manager is wired. Key Vault is strong at
+runtime but weak at developer ergonomics: pulling secrets locally means `az login` +
+`az keyvault secret show`, with no clean "inject env vars into my process" workflow, and the
+polyrepo (8 repos) multiplies that friction.
+
+**Decision.**
+Adopt **Doppler as the authoring + distribution plane for developer and CI secrets**, and keep
+**Azure Key Vault + CSI as the runtime store of record** in AKS. The two are bridged by
+**Doppler's Key Vault sync integration**:
+
+- **Local dev:** `doppler run -- <cmd>` injects secrets as env vars; `doppler.yaml` maps each
+  repo to a Doppler project/config. No `.env` files, nothing secret in git.
+- **CI:** integration/deploy stages fetch secrets via a scoped Doppler **service token**
+  (stored in the CI secret store, referenced by name). The **unit gate (ruff → pyright →
+  pytest) runs with no secrets** (MockProvider / fakes) and never depends on Doppler.
+- **Runtime (AKS):** Doppler syncs secrets into Key Vault; pods mount them via the CSI driver +
+  Workload Identity exactly as before. Application code is unchanged — it still reads env vars.
+
+**Consequences.**
+- (+) First-class local/CI DX; no `.env` sprawl; single authoring source fans out to Key Vault.
+- (+) Preserves the Azure-native runtime narrative (Key Vault + CSI) end to end.
+- (+) Rotation flow: rotate in Doppler → sync → Key Vault → CSI re-mount.
+- (−) One extra SaaS vendor in the dev/CI trust boundary — an enterprise would security-review it;
+  noted as a known trade-off, mitigated by Doppler holding only dev/CI material and runtime
+  authority remaining in Key Vault.
+- (−) One sync integration to configure and monitor.
+
+**Alternatives rejected.**
+- **Key Vault only:** keeps everything in-Azure but leaves the poor local-dev DX unsolved.
+- **Doppler everywhere (K8s Operator, drop Key Vault):** simpler, but diverges from the target
+  stack and weakens the "built the way you run it" story.
 
 ---
 

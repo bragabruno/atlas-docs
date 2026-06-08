@@ -1,9 +1,16 @@
 # Bitbucket Pipelines — atlas-docs (XCUT-6, primary pipeline).
 #
+# Orchestration only: every gate calls a versioned script under scripts/ (the
+# single source of truth). Run `make ci` locally for the same gates. Logic lives
+# in scripts/, not in this file. See scripts/README.md.
+#
 # atlas-docs is the canonical home of the cross-repo diagrams. Its pipeline IS
 # the diagram-validation gate: every Mermaid (```mermaid in .md, plus .mmd) and
 # PlantUML (.puml) source must render/parse, or the PR fails. Trunk(markdownlint)
 # lints the prose alongside it (markdownlint pinned in .trunk/trunk.yaml).
+#
+# Lint   (scripts/lint.sh): Trunk → markdownlint (+ git-diff-check).
+# XCUT-6 (scripts/test.sh → scripts/validate_diagrams.sh): Mermaid + PlantUML.
 #
 # Tool versions are pinned exactly (atlas-docs/02 §2). No secret values here.
 
@@ -18,20 +25,20 @@ pipelines:
     "**":
       - parallel:
           - step:
-              name: "Lint (Trunk → markdownlint)"
+              name: "Lint (Trunk → markdownlint) — scripts/lint.sh"
               caches: [trunk-cache]
               script:
+                # Env prep only; all validation logic is in scripts/lint.sh.
                 # Trunk is git-native and fetches its tools at runtime, so the
                 # slim image needs git + curl + network. The installer drops
                 # `trunk` in /usr/local/bin (root).
                 - apt-get update && apt-get install -y --no-install-recommends
                     git curl ca-certificates
                 - curl -fsSL https://get.trunk.io | bash -s -- -y
-                # One check = markdownlint (+ git-diff-check) over all files;
-                # rc!=0 on any issue.
-                - trunk check --all --ci
+                # CI is set by Bitbucket, so lint.sh runs `trunk check --all --ci`.
+                - ./scripts/lint.sh
           - step:
-              name: "XCUT-6 — Diagram validation (Mermaid + PlantUML)"
+              name: "XCUT-6 — Diagram validation (scripts/test.sh)"
               script:
                 # JRE for PlantUML + Chromium deps for mermaid-cli headless render.
                 - apt-get update && apt-get install -y --no-install-recommends
@@ -45,5 +52,6 @@ pipelines:
                 - export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
                 - printf '{"args":["--no-sandbox"]}' > /tmp/puppeteer.json
                 - export PUPPETEER_CONFIG=/tmp/puppeteer.json
-                # Scan the canonical diagrams tree plus any docs/diagrams in this repo.
-                - bash scripts/validate_diagrams.sh diagrams
+                # All validation logic is in scripts/test.sh → validate_diagrams.sh;
+                # it scans the canonical diagrams/ tree.
+                - ./scripts/test.sh diagrams

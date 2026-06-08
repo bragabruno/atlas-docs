@@ -23,7 +23,7 @@
 **Responsibility**
 Single ingress for all model calls. Exposes an OpenAI-compatible REST surface (`POST /v1/chat/completions`, `GET /v1/models`, `POST /v1/embeddings`) so internal clients require no provider-specific SDKs. Handles authentication, rate limiting, budget enforcement, semantic caching, provider routing, retry, and circuit breaking.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -39,7 +39,7 @@ Single ingress for all model calls. Exposes an OpenAI-compatible REST surface (`
 **How it scales**
 Stateless FastAPI + Uvicorn workers behind AKS HPA (CPU + RPS metrics). Redis holds all shared state (cache, rate-limit counters, circuit-breaker state), allowing any pod to serve any request.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Provider outage → circuit breaker opens; 503 returned; event still emitted to Kafka for accounting consistency
 - Redis unavailable → cache miss path; rate-limit enforcement degrades to best-effort; circuit breaker falls back to closed
@@ -52,7 +52,7 @@ Stateless FastAPI + Uvicorn workers behind AKS HPA (CPU + RPS metrics). Redis ho
 **Responsibility**
 Versioned store for all prompt templates and system-prompt references. Enforces the rule that clients never embed prompt text in requests. Provides a content-addressed lookup by `prompt_ref` (name + semver), diff/audit trail, and promotion workflow (draft → reviewed → production).
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -64,7 +64,7 @@ Versioned store for all prompt templates and system-prompt references. Enforces 
 **How it scales**
 Read-heavy; Redis caching absorbs >95 % of load. PostgreSQL Flexible Server with read replica for eval pipeline batch reads.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Registry miss (unknown `prompt_ref`) → gateway returns 400 immediately; never falls back to client-supplied text
 - Redis cache stale after promotion → explicit invalidation on write; TTL acts as backstop
@@ -76,7 +76,7 @@ Read-heavy; Redis caching absorbs >95 % of load. PostgreSQL Flexible Server with
 **Responsibility**
 Ordered middleware chain applied before and after every LLM call. Pre-call guards: PII detection, topic/content policy, prompt-injection screening. Post-call guards: output content policy, citation enforcement (agent path), structured-output schema validation.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -88,7 +88,7 @@ Ordered middleware chain applied before and after every LLM call. Pre-call guard
 **How it scales**
 Stateless Python functions; runs in-process within gateway pods. Policy config cached in Redis; no additional replicas needed.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Guardrail timeout → fail-closed (block request); logged as `guardrail.timeout` span event
 - Policy config cache miss → falls back to DB; adds latency spike
@@ -100,7 +100,7 @@ Stateless Python functions; runs in-process within gateway pods. Policy config c
 **Responsibility**
 Hand-rolled thin agentic loop. Loads an agent definition from YAML (fields: `system_prompt_ref`, `model_alias`, `tool_whitelist[]`, `max_iterations`, `token_budget`, `timeout_s`), then iterates: gateway call → tool dispatch → result re-entry, until a final answer is produced or a hard cap is hit. Persists every run and step to PostgreSQL. Emits a multi-span OTel trace with one child span per iteration.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -113,7 +113,7 @@ Hand-rolled thin agentic loop. Loads an agent definition from YAML (fields: `sys
 **How it scales**
 Each agent run is an independent async coroutine; runtime pods scale horizontally. Long-running runs stay pinned to one pod for the duration (no mid-run migration needed); AKS pod disruption budget prevents eviction during active runs.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - `max_iterations` or `token_budget` exceeded → run terminates with `LIMIT_HIT` status; partial steps persisted
 - MCP tool timeout → tool result marked `ERROR`; loop can continue or abort depending on agent config
@@ -126,7 +126,7 @@ Each agent run is an independent async coroutine; runtime pods scale horizontall
 **Responsibility**
 Exposes one tool: `doc_search(query, k=8) → {chunks: [{id, text, source_id, score}]}`. Implements hybrid retrieval: BM25 lexical search via Elasticsearch (`doc_chunks` index) merged with dense vector search via Qdrant (`doc_chunks` collection). Reciprocal-rank fusion combines the two result lists before returning the top-k chunks.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -138,7 +138,7 @@ Exposes one tool: `doc_search(query, k=8) → {chunks: [{id, text, source_id, sc
 **How it scales**
 Stateless; scale Elasticsearch data nodes and Qdrant replicas independently. Query embedding cached in Redis to avoid redundant gateway calls for repeated queries.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - ES timeout → fall back to vector-only results; logged
 - Qdrant timeout → fall back to BM25-only results; logged
@@ -151,7 +151,7 @@ Stateless; scale Elasticsearch data nodes and Qdrant replicas independently. Que
 **Responsibility**
 Exposes one tool: `verify_citation(source_id, claim) → {exists: bool, snippet: str}`. Confirms that a claimed statement is substantiated by the referenced source document. Used by the post-guardrail citation enforcement step in the agent loop.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -162,7 +162,7 @@ Exposes one tool: `verify_citation(source_id, claim) → {exists: bool, snippet:
 **How it scales**
 Stateless; scales with agent runtime. ES and Qdrant lookups by ID are O(1).
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Chunk not found → `exists: false`; agent cites incorrectly; post-guardrail blocks response
 - Entailment model call fails → conservative `exists: false`; fail-closed
@@ -174,7 +174,7 @@ Stateless; scales with agent runtime. ES and Qdrant lookups by ID are O(1).
 **Responsibility**
 Offline and gate-time evaluation of prompt versions and model changes. Runner replays golden sets against the gateway, scores outputs (ROUGE, semantic similarity, citation recall), logs results to MLflow, and gates promotions. Triggered by CI on every prompt-version change and by scheduled nightly runs.
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
@@ -188,7 +188,7 @@ Offline and gate-time evaluation of prompt versions and model changes. Runner re
 **How it scales**
 Batch workload; runs as AKS Job. Parallelism controlled by Kubernetes `completions`/`parallelism` fields.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Gateway rate-limit hit during replay → eval runner respects 429 back-off
 - MLflow unreachable → eval fails; pipeline blocks promotion
@@ -200,7 +200,7 @@ Batch workload; runs as AKS Job. Parallelism controlled by Kubernetes `completio
 **Responsibility**
 Durable async backbone for accounting, tracing spans, shadow traffic, and eval request dispatch. Decouples the gateway hot path from downstream consumers.
 
-**Topics**
+#### Topics
 
 | Topic | Producer | Consumers |
 |-------|----------|-----------|
@@ -212,7 +212,7 @@ Durable async backbone for accounting, tracing spans, shadow traffic, and eval r
 **How it scales**
 Partition count per topic tuned to peak TPS. Consumer groups allow independent scaling of accounting and eval consumers.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Broker unavailable → gateway continues to serve; accounting events buffered in-process (bounded queue) or dropped after threshold; at-least-once delivery resumes on reconnect
 - Consumer lag → ops alert at configurable threshold; backpressure via consumer pause or parallel scaling
@@ -224,11 +224,11 @@ Partition count per topic tuned to peak TPS. Consumer groups allow independent s
 **Responsibility**
 Distributed tracing and log aggregation across all services. Each service instruments with the OTel Python SDK; the Collector (deployed as a DaemonSet sidecar) batches and exports to Splunk.
 
-**Span attributes (GenAI semconv)**
+#### Span attributes (GenAI semconv)
 
 `gen_ai.system` · `gen_ai.request.model` · `gen_ai.response.model` · `gen_ai.usage.input_tokens` · `gen_ai.usage.output_tokens` · `gen_ai.operation.name` · `gen_ai.agent.name`
 
-**Key interfaces / dependencies**
+#### Key interfaces / dependencies
 
 | Direction | Dependency |
 |-----------|-----------|
@@ -239,7 +239,7 @@ Distributed tracing and log aggregation across all services. Each service instru
 **How it scales**
 DaemonSet Collector ensures one collector per node; Splunk indexer cluster scales independently.
 
-**Primary failure modes**
+#### Primary failure modes
 
 - Collector crash → spans buffered in SDK memory; data loss after buffer exhaust
 - Splunk HEC unavailable → Collector retries with exponential back-off; disk buffer as secondary

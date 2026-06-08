@@ -323,6 +323,7 @@ sequenceDiagram
 ```
 
 Entra ID federated credential configured for:
+
 - `issuer`: `https://api.bitbucket.org/2.0/workspaces/<workspace>/pipelines-config/identity/oidc`
 - `subject`: `{<repo-uuid>}:{<env>}:pipeline` (scoped per environment)
 
@@ -799,6 +800,7 @@ Artifact storage: all eval artefacts (judge outputs, traces, golden-set snapshot
 > **AI services add a third CI/CD gate — quality (evals) — alongside correctness (tests) and safety (canary).**
 
 Traditional software CI/CD has two gates:
+
 1. **Correctness** — do the unit and integration tests pass?
 2. **Safety** — does the canary deployment hold SLOs under real traffic?
 
@@ -813,8 +815,8 @@ Gate 1 — Correctness  →  Gate 2 — Quality (evals)  →  Gate 3 — Safety 
     zero API spend          blocks merge on regression       promotes to 100% or rolls back
 ```
 
-This three-gate model is the structural answer to the question: *"How do we ship LLM-powered features with the same rigour as deterministic software?"*
+This three-gate model is the structural answer to the question: _"How do we ship LLM-powered features with the same rigour as deterministic software?"_
 
 ---
 
-*Document version: 2026-06-06. Canonical facts sourced from Atlas architecture decision log. All version numbers marked for pinning at lock time.*
+_Document version: 2026-06-06. Canonical facts sourced from Atlas architecture decision log. All version numbers marked for pinning at lock time._

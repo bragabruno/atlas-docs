@@ -7,29 +7,35 @@ Diagrams span **requirements → context → container → component → low-lev
 
 ## System level (this repo)
 
-**Context & requirements**
+### Context & requirements
+
 - [System context — C4 Level 1](context/system-context.md)
 - [Use cases — UML](context/use-cases.puml)
 - [Requirements traceability — FR/NFR → components](context/requirements-traceability.md)
 
-**Containers**
+### Containers
+
 - [Container diagram — C4 Level 2](containers/container-c4.md)
 
-**Data**
+### Data
+
 - [Entity-relationship — PostgreSQL (10 tables)](data/erd.md)
 - [Qdrant collections](data/qdrant-collections.md)
 - [Kafka topics & event schemas](data/kafka-topics.md)
 
-**Interaction (system-level)**
+### Interaction (system-level)
+
 - [Chat request — end to end](sequence/chat-request-e2e.md)
 - [Agent RAG run — end to end](sequence/agent-rag-run-e2e.md)
 
-**User flows / activity**
+### User flows / activity
+
 - [Analyst → cited answer](flows/analyst-cited-answer.md)
 - [Prompt promotion (eval-gated)](flows/prompt-promotion.md)
 - [Budget alert response](flows/budget-alert-response.md)
 
-**Cross-cutting**
+### Cross-cutting
+
 - [CI/CD — three-gate pipeline](cicd/three-gate-pipeline.md)
 - [Observability — OTel → Splunk + MLflow](observability/otel-splunk-mlflow.md)
 

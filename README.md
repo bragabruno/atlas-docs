@@ -18,6 +18,18 @@ Demo workload: a **regulatory-document Q&A agent** (RAG with enforced citations)
 | — | [Framework Evaluation](research/framework-evaluation.md) | Evidence-based framework selection across all 8 repos — Enhesa current stack (live JDs), build-vs-adopt frontier, per-repo recommendations → ADR-016…020 |
 | — | [Backlog (Linear-ready)](backlog/TICKETS.md) | 100 stories across 6 phase-epics + cross-cutting; acceptance criteria, estimates, dependencies, labels |
 
+## Runbooks
+
+Operational runbooks for the Atlas platform. All commands reference real `make` targets, `kubectl`, `helm`, `skaffold`, `kubectl argo rollouts`, and `alembic` commands from the repos.
+
+| Runbook | What it covers |
+|---|---|
+| [Incident Response](runbooks/incident-response.md) | Triage checklist, severity classification, Splunk dashboards + OTel signals to check, comms protocol |
+| [Rollback](runbooks/rollback.md) | Gateway canary rollback (Argo Rollouts `undo`); prompt version rollback (registry production-pointer flip / REG-5); database migration rollback (Alembic downgrade) |
+| [On-Call](runbooks/on-call.md) | Escalation path, key SLO signals, where things live (repos, Azure RGs, namespaces, endpoints), common failure patterns |
+| [Cost Control](runbooks/cost-control.md) | Scale-to-zero CronJob (automatic overnight), `make cloud-down` / `full-down`, `make destroy`, expected $/month |
+| [Teardown](runbooks/teardown.md) | `make destroy` end-to-end, Key Vault soft-delete recovery, post-destroy verification, `make full-up` recreate |
+
 ## Reading order
 
 - **New to Atlas:** 00 → 01 → 06.

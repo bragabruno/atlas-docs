@@ -1,0 +1,30 @@
+# Bitbucket Pipelines — atlas-docs (XCUT-6, primary pipeline).
+#
+# atlas-docs is the canonical home of the cross-repo diagrams. Its pipeline IS
+# the diagram-validation gate: every Mermaid (```mermaid in .md, plus .mmd) and
+# PlantUML (.puml) source must render/parse, or the PR fails.
+#
+# Tool versions are pinned exactly (atlas-docs/02 §2). No secret values here.
+
+image: node:22.22.2-bookworm-slim  # 22.22.2 (2026-03-24)
+
+pipelines:
+  pull-requests:
+    "**":
+      - step:
+          name: "XCUT-6 — Diagram validation (Mermaid + PlantUML)"
+          script:
+            # JRE for PlantUML + Chromium deps for mermaid-cli headless render.
+            - apt-get update && apt-get install -y --no-install-recommends
+                default-jre-headless chromium fonts-liberation
+            # Pinned PlantUML jar (1.2026.3, 2026-05-08) from the GitHub release.
+            - export PLANTUML_VERSION=1.2026.3
+            - curl -fsSL -o /tmp/plantuml.jar
+                "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar"
+            - export PLANTUML_JAR=/tmp/plantuml.jar
+            # mermaid-cli (11.14.0) runs headless via the system Chromium.
+            - export PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+            - printf '{"args":["--no-sandbox"]}' > /tmp/puppeteer.json
+            - export PUPPETEER_CONFIG=/tmp/puppeteer.json
+            # Scan the canonical diagrams tree plus any docs/diagrams in this repo.
+            - bash scripts/validate_diagrams.sh diagrams

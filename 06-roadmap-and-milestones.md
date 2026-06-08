@@ -24,30 +24,35 @@ Build the **keystone first** (the gateway — everything depends on it), insert 
 ## Phases
 
 ### P0 — Infra foundation (epic `INF`)
+
 **Goal:** a reproducible Azure footprint and an AKS-only dev loop, with all platform dependencies running.
 **Deliverables:** Terraform (azurerm) modules — network, AKS (+ Workload Identity), identity, secrets (Key Vault + CSI), data (Azure PostgreSQL Flexible Server + Redis), storage (Blob + ACR); Qdrant, Kafka (topics created), Elasticsearch, MLflow, and the OTel Collector→Splunk pipeline deployed; Bitbucket Pipelines PR pipeline green; Skaffold dev loop (ADR-019); Terraform state backend in Azure Storage.
 **Demo:** `make cloud-up ENV=dev` → `kubectl get nodes` ready → a placeholder gateway pod reachable via ingress; `terraform plan` clean.
 **Exit criteria:** one-command up; CI green on an empty `MockProvider`; all data services reachable in-cluster.
 
 ### P1 — Gateway core (epic `GW`)
+
 **Goal:** the keystone — one OpenAI-compatible API in front of three providers, with accounting and traces.
 **Deliverables:** Provider abstraction (Mock/OpenAI/Anthropic/Google); `/v1/chat/completions` (stream + non-stream), `/v1/models`, `/v1/embeddings`; alias routing + fallback; retries + per-provider Redis-backed circuit breaker; exact cache; per-call accounting (3 token fields) → Kafka `atlas.calls.v1`; rate-limit + monthly budget → 429; OTel GenAI spans → Splunk.
 **Demo:** `curl` with `model=mock` → OpenAI-shaped JSON; a `call_records` row with cost/latency; a span in Splunk; 429 on rate-limit and budget.
 **Exit criteria:** <50ms p95 gateway overhead under load (Mock); offline test suite green.
 
 ### P2 — Prompt registry + eval gate (epic `REG`) — *the money demo*
+
 **Goal:** prompts versioned and promoted like code; a bad prompt cannot reach production.
 **Deliverables:** `prompts`/`prompt_versions` + promotion state machine + instant rollback; git-tracked templates; eval runner + versioned golden sets in Blob; metrics (exact/semantic/citation/cost/latency + LLM-as-judge advisory); MLflow tracking; Bitbucket eval-gate that blocks a regressing PR and posts the metric diff.
 **Repo split:** prompt templates, agent YAMLs, eval runner, golden-set refs, and the eval-gate CI pipeline live in `atlas-prompts`; the registry DB schema and runtime API live in `atlas-gateway`.
 **Demo:** open a PR with a regressed prompt → eval-gate red + metric comment; fix → green → promote; rollback flips the pointer instantly.
 
 ### P3 — Guardrails (epic `GRD`)
+
 **Goal:** enforced pre/post checks as a platform service.
 **Deliverables:** middleware chain (fail-fast `GuardrailRejection`); pre — PII (regex + NER), injection (heuristics + cheap-model classifier via gateway, tool-output sanitization), size caps; post — JSON-schema + bounded repair, citation-enforcement check, content policy; per-check OTel metrics.
 **Demo:** PII redacted pre-call; injection blocked; malformed JSON repaired-or-rejected; uncited claim rejected; raw PII absent from logs.
 **Note:** citation enforcement becomes *end-to-end real* only once P4's doc-search exists (see DAG).
 
 ### P4 — Agent runtime + MCP (epic `AGT`) — *the Enhesa parallel*
+
 **Goal:** a bounded RAG agent with verified citations.
 **Deliverables:** hand-rolled thin loop with hard caps; YAML agent defs; tool whitelist + sanitization; run/step persistence; corpus ingestion → Qdrant `doc_chunks` + Elasticsearch index; `mcp-doc-search` (hybrid BM25 + vector) and `mcp-citations` servers; the RegDoc Q&A agent; full multi-span traces.
 **Demo:** cited answer end-to-end; refusal on an unanswerable question (no hallucinated cite); runaway hits the cap with an explicit error; trace in Splunk; run/step rows in Postgres.
@@ -60,6 +65,7 @@ Angular + TypeScript app spanning P1 → P4. Depends on the gateway OpenAPI spec
 - **P4+:** citations panel becomes fully functional once end-to-end citation enforcement is in place.
 
 ### P5 — Polish (epic `POL`)
+
 **Goal:** the production-grade differentiators.
 **Deliverables:** opt-in semantic cache (Qdrant `semantic_cache`, 0.97, tenant-scoped, never for cited answers); gateway canary (Argo Rollouts/Flagger, 10%, auto-rollback on SLO breach); nightly shadow/drift evals via `atlas.shadow.v1` → MLflow; Splunk dashboards.
 **Demo:** semantic cache hit on a paraphrase; broken image auto-rolled-back by canary; drift delta on the dashboard.

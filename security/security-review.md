@@ -182,6 +182,7 @@ Scan-on-push (Microsoft Defender for Containers) is available at all ACR tiers b
 ### 4.2 Base Image Pins
 
 The only Dockerfile present (`atlas-frontend/Dockerfile`) pins:
+
 - `node:22.16.0-alpine3.22` — image tag is a specific version (not `latest`). Comment notes push date ≥14 days.
 - `nginx:1.27.5-alpine3.21` — specific version pinned.
 

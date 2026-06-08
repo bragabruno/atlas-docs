@@ -11,6 +11,7 @@
 The user asked, across all 8 Atlas repos, **where a framework is appropriate and which one is most suitable**. This document answers that with an evidence-based evaluation rather than preference.
 
 **Evidence sources:**
+
 1. **Repo state** — manifests + READMEs of all 8 repos (only `atlas-gateway` has pinned code today; the rest are scaffolds that *declare intent* but pin nothing, several leaving choices explicitly open).
 2. **Existing ADRs** — the 15 ratified records in [`02`](../02-tech-stack-and-adrs.md), which already draw the build-vs-adopt line implicitly (ADR-001 no-LiteLLM, ADR-006 no-LangGraph).
 3. **The target stack** — Enhesa's **live job postings** (Greenhouse, June 2026), used as primary-source corroboration of what Atlas mirrors (§2).
@@ -123,6 +124,7 @@ The gateway today is flat (`api/v1/chat.py` mixes HTTP + business logic + provid
 | Hexagonal/ports-adapters | ports in `domain`, adapters around | good but heavier ceremony than needed now |
 
 **Recommended structure (gateway, generalizes to all Python services):**
+
 ```
 app/
 ├── api/         # controllers: HTTP only (parse, auth, serialize) + deps.py (DI providers)
@@ -132,6 +134,7 @@ app/
 ├── providers/, cache/, limits/, … # capability adapters the services compose
 └── main.py      # composition root (DI wiring)  · config.py  # settings
 ```
+
 This gives controller→service→repository separation + testability, keeps FastAPI's async grain, and makes the wave-1 "module-first, wire-later" plan clean (cache/guardrails land as modules; a thin commit wires them into `services/`). → **Proposed ADR-016.**
 
 ### 5.3 Agent runtime — hand-rolled vs frameworks
@@ -203,6 +206,7 @@ Both support Helm ([wallarm](https://www.wallarm.com/cloud-native-products-101/s
 **Recommendation (default): Skaffold** — Helm-native and declarative, parallel to the Argo Rollouts/Helm CD path (the umbrella loop builds→ACR→Helm→AKS). Tilt is the better *DX* (live reload + dashboard for 8 services) and is a defensible pick if inner-loop speed matters more than CD parity. → *Proposed ADR-019. **User decision — §7.***
 
 **Terraform testing/policy (recommended, no decision needed):**
+
 - **`terraform test`** (native, 1.6+, HCL, no deploy) for module-logic validation — no Go barrier.
 - **Checkov** for security/compliance (CIS/GDPR/PCI; also scans Helm/K8s — Python-native, matches the team language).
 - **tflint** as the linter (provider mistakes/deprecated syntax — "not a security scanner").

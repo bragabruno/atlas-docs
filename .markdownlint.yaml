@@ -1,0 +1,11 @@
+# .markdownlint.yaml — atlas-docs
+# Rules disabled where they conflict with the repo's content, not because docs are wrong.
+default: true
+MD013: false  # line length — long ADR prose, wide tables, full URLs in research/
+MD060: false  # table column style — would reformat existing C4/ERD/contract tables
+MD040: false  # fenced code language — many plain output/tree fences; mermaid stays byte-for-byte
+MD056: false  # table column count — a few intentionally ragged tables
+MD024:
+  siblings_only: true  # component subsections repeat "Key interfaces / dependencies" / "Primary failure modes" across sections — intentional; only flag same-parent duplicates
+MD038: false  # one runbooks/on-call.md code span carries intentional spacing the autofix corrupts
+MD029: false  # one ordered list intentionally resumes numbering after a code block; autofix renumber broke the sequence

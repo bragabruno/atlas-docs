@@ -165,21 +165,24 @@ infra/
     │   ├── data/             # PostgreSQL Flexible Server, Redis Cache
     │   ├── storage/          # Blob Storage accounts, ACR
     │   ├── identity/         # User-assigned MIs, federated credentials, role assignments
-    │   ├── secrets/          # Key Vault, access policies / RBAC, CSI provider config
-    │   ├── kafka/            # Event Hubs namespace + Kafka endpoint OR Strimzi Helm release
-    │   └── observability/    # OTel Collector Helm release, MLflow Helm release
+    │   └── secrets/          # Key Vault, access policies / RBAC, CSI provider config
+    ├── bootstrap/            # one-shot state backend bootstrap
     └── envs/
-        ├── dev/
-        │   ├── main.tf       # module calls with dev-sized vars
-        │   ├── variables.tf
-        │   ├── terraform.tfvars
-        │   └── backend.tf    # Azure Storage state backend (dev container)
-        └── prod/
-            ├── main.tf
+        └── dev/
+            ├── main.tf       # module calls with dev-sized vars
             ├── variables.tf
-            ├── terraform.tfvars
-            └── backend.tf    # Azure Storage state backend (prod container)
+            └── backend.tf    # Azure Storage state backend (dev container)
+
+platform/                     # Helm charts for platform / third-party services (not TF modules)
+    ├── qdrant/               # Qdrant Helm chart
+    ├── kafka/                # Strimzi operator + Kafka CR
+    ├── elasticsearch/        # Elasticsearch Helm chart
+    ├── mlflow/               # MLflow Helm chart
+    ├── otel-collector/       # OTel Collector Helm chart (DaemonSet + Deployment)
+    └── cost-controls/        # scale-to-zero CronJob
 ```
+
+> **Note:** Kafka and the OTel/MLflow observability stack are deployed as **Helm charts** in `atlas-infra/platform/` (managed by Skaffold / `make cloud-up`), not as Terraform modules. Terraform provisions only the Azure PaaS layer (network, AKS, data, storage, identity, secrets).
 
 ### 2.2 State Backend
 
@@ -227,6 +230,8 @@ terraform {
 
 ### 2.4 Module Responsibilities (summary)
 
+**Terraform modules** (`infra/terraform/modules/`):
+
 | Module | Key Resources |
 |---|---|
 | `network` | `azurerm_virtual_network`, subnets, NSGs, private DNS zones, private endpoints |
@@ -235,8 +240,17 @@ terraform {
 | `storage` | `azurerm_storage_account` × 2 (artifacts, golden-sets), `azurerm_container_registry` |
 | `identity` | `azurerm_user_assigned_identity` per service, `azurerm_federated_identity_credential` per service account, `azurerm_role_assignment` (least-privilege) |
 | `secrets` | `azurerm_key_vault`, RBAC role assignments, `SecretProviderClass` manifest |
-| `kafka` | Either `azurerm_eventhub_namespace` + topics, or Strimzi Helm release + `Kafka` CR |
-| `observability` | OTel Collector Helm release (`opentelemetry-collector`), MLflow Helm release, ServiceMonitor CRDs |
+
+**Platform Helm charts** (`platform/`) — deployed by Skaffold/`make cloud-up`, not by Terraform:
+
+| Chart | Notes |
+|---|---|
+| `qdrant` | Qdrant vector store |
+| `kafka` | Strimzi operator + `Kafka` CR (prod) or Azure Event Hubs endpoint (dev) |
+| `elasticsearch` | Elasticsearch document and log index |
+| `mlflow` | MLflow tracking server (PostgreSQL backend + Blob artifacts) |
+| `otel-collector` | OTel Collector DaemonSet + Deployment (OTLP → Splunk HEC) |
+| `cost-controls` | Scale-to-zero CronJob |
 
 ---
 

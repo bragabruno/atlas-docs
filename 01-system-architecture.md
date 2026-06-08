@@ -156,12 +156,11 @@ Exposes one tool: `verify_citation(source_id, claim) → {exists: bool, snippet:
 | Direction | Dependency | Notes |
 |-----------|-----------|-------|
 | Inbound | Agent Runtime (MCP SDK) | Tool call |
-| Outbound | Qdrant `doc_chunks` | Fetch chunk by `source_id` |
-| Outbound | Azure Blob | Raw document retrieval if chunk is insufficient |
-| Outbound | Gateway `/v1/chat/completions` | Semantic entailment check (small model) |
+| Outbound | Elasticsearch `doc_chunks` index | Primary lookup: fetch chunk by `source_id` (fast path) |
+| Outbound | Qdrant `doc_chunks` collection | Fallback lookup if ES returns nothing |
 
 **How it scales**
-Stateless; scales with agent runtime. Qdrant lookups by ID are O(1).
+Stateless; scales with agent runtime. ES and Qdrant lookups by ID are O(1).
 
 **Primary failure modes**
 

@@ -96,7 +96,7 @@ see ADR-021 context and the repo `.trunk/trunk.yaml`). `✓` = active, `↷` = s
 Notes:
 
 - **`atlas-prompts`** adds `scripts/eval.sh` — the eval quality gate (Gate-2). It
-  runs `gate.py` only when `CANDIDATE_RUN_ID` (+ `BASELINE_EVAL_RUN_ID`, or
+  runs `atlas_prompts.gate` (`python -m atlas_prompts.gate`) only when `CANDIDATE_RUN_ID` (+ `BASELINE_EVAL_RUN_ID`, or
   `GATE_NO_BASELINE=1`) are set; otherwise it skips.
 - **`atlas-infra`** **extends** its pre-existing `Makefile` (cloud `*-up/down`,
   `destroy`, etc.) — the build-system targets are added alongside, never replacing

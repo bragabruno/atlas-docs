@@ -43,6 +43,7 @@
 | **Local dev loop** | Skaffold (umbrella) | AKS-only dev loop, Helm-native, parallels the Argo/Helm CD path; Tilt evaluated (richer DX) — see ADR-019; no local Docker Compose target | Yes |
 | **Object storage** | Azure Blob Storage | Artefacts, eval datasets, prompt snapshots | Yes |
 | **Frontend** | Angular + TypeScript (`atlas-frontend`) | Mirrors Enhesa; **Vitest** test runner (Karma EOL) + **Angular Signals** service-store state per ADR-018; TS API types generated from the gateway OpenAPI spec | Yes |
+| **Repo file layout** | Framework-idiomatic per repo (FastAPI `app/` · MCP named package · PyPA `src/` for `atlas-prompts` · Angular 2025 naming) | Each repo follows its owning framework's docs; `src/` only where no framework owns it; see ADR-022 | Convention |
 
 ### Model Token & Pricing Reference
 
@@ -614,6 +615,39 @@ Adopt **Doppler as the authoring + distribution plane for developer and CI secre
 - **Key Vault only:** keeps everything in-Azure but leaves the poor local-dev DX unsolved.
 - **Doppler everywhere (K8s Operator, drop Key Vault):** simpler, but diverges from the target
   stack and weakens the "built the way you run it" story.
+
+---
+
+### ADR-022 Per-Repo File Layout Follows the Owning Framework's Docs (PyPA `src/` as Fallback)
+
+**Status:** Accepted (2026-06-08)
+
+**Context.**
+The 8 polyrepos (ADR-013) had drifted into three inconsistent Python layouts and a half-migrated Angular naming scheme. The FastAPI services and the MCP servers all used a generic `app/` import package behind a `pythonpath = ["."]` test shim (so `top_level.txt = app` in every wheel — a name collision if co-installed); `atlas-prompts` carried three top-level packages (`atlas_prompts`, `evals`, `eval_runs`) plus a loose `gate.py`; and `atlas-frontend` had migrated only its root files to the new Angular naming. There was no single principle for "where do files go," so the question got re-litigated per repo.
+
+**Decision.**
+Each repo follows the **recommended file structure of its owning framework's documentation**; **PyPA's `src/` layout is the fallback only where no framework owns the repo.** Verified against the live framework docs, this yields:
+
+- **FastAPI services** (`atlas-gateway`, `atlas-agent-runtime`) → keep the **`app/` package** (FastAPI's "Bigger Applications" docs prescribe `app/main.py` + routers + `dependencies.py`). Already conformant; explicitly **not** migrated to `src/`.
+- **MCP servers** (`atlas-mcp-doc-search`, `atlas-mcp-citations`) → a **named package** `atlas_mcp_<name>/` with `server.py` and a `[project.scripts] … = "pkg.server:main"` console entry, per the MCP Python SDK's own example servers.
+- **`atlas-prompts`** (library + CLI, no owning framework) → **PyPA `src/atlas_prompts/`**, folding the former `evals`/`eval_runs` packages and `gate.py` in as subpackages, with eval **data** hoisted to repo-root `datasets/` + `rubrics/`. The `pythonpath` shim is removed — an editable install is mandatory, so tests run against the installed package.
+- **`atlas-frontend`** (Angular 21) → the Angular **"2025" style guide**: suffix-less filenames (drop `.component`/`.service`/`.store`/`.interceptor`), same base name for `.ts`/`.html`/`.scss`.
+- **`atlas-infra`** (Terraform/HashiCorp) → already conformant with the HashiCorp module structure (`modules/*/{main,variables,outputs,versions}.tf` + `envs/` + `bootstrap/`).
+
+**Consequences.**
+
+- (+) One rule resolves every layout question and is defensible by citing each framework's docs; no per-repo bikeshedding.
+- (+) Each repo reads as idiomatic in its ecosystem (a FastAPI dev sees `app/`; an MCP author sees a named package + console script; a Python packager sees `src/`).
+- (+) Dropping the `pythonpath` shim in `atlas-prompts` surfaces packaging bugs early (tests import the built package, not the working dir).
+- (−) The fleet is **intentionally not uniform** — FastAPI repos use `app/` while `atlas-prompts` uses `src/`. This is by design (framework-idiomatic > globally-uniform); a reviewer must know the rule rather than expect one layout everywhere.
+- (−) The FastAPI/MCP packages keep relying on `pythonpath = ["."]` for tests (acceptable — matches their framework norms; only the distributable library earns the `src/` install discipline).
+
+**Alternatives rejected.**
+
+- **`src/` everywhere (uniformity):** overrides FastAPI's and the MCP SDK's documented conventions and would churn ~95 files across the two FastAPI repos for zero conformance gain — directly contradicting the principle.
+- **`app/` everywhere:** keeps the generic, collision-prone `app` import name and the `pythonpath` shim, which is wrong for a distributable library like `atlas-prompts`.
+
+*Implemented (2026-06-08, pure-structural, behavior-preserving): `atlas-mcp-doc-search` #10, `atlas-mcp-citations` #9, `atlas-prompts` #12, `atlas-frontend` #10; docs synced in this PR.*
 
 ---
 

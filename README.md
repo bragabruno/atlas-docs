@@ -18,6 +18,12 @@ Demo workload: a **regulatory-document Q&A agent** (RAG with enforced citations)
 | — | [Framework Evaluation](research/framework-evaluation.md) | Evidence-based framework selection across all 8 repos — Enhesa current stack (live JDs), build-vs-adopt frontier, per-repo recommendations → ADR-016…020 |
 | — | [Backlog (Linear-ready)](backlog/TICKETS.md) | 100 stories across 6 phase-epics + cross-cutting; acceptance criteria, estimates, dependencies, labels |
 
+## Security
+
+| Document | What it covers |
+|---|---|
+| [XCUT-1 Security Review](security/security-review.md) | No-secrets grep sweep (result: clean), NSG + private endpoint posture, least-privilege managed identities, ACR scan/quarantine, non-root containers, 8-finding findings table |
+
 ## Runbooks
 
 Operational runbooks for the Atlas platform. All commands reference real `make` targets, `kubectl`, `helm`, `skaffold`, `kubectl argo rollouts`, and `alembic` commands from the repos.
@@ -34,7 +40,7 @@ Operational runbooks for the Atlas platform. All commands reference real `make` 
 
 - **New to Atlas:** 00 → 01 → 06.
 - **Implementing:** 02 (decisions) → 03 (contracts) → 04 (infra/CI) → `backlog/TICKETS.md`.
-- **Security/review:** 05 + 03.
+- **Security/review:** 05 + 03 + [security/security-review.md](security/security-review.md).
 
 ## Key locked decisions
 

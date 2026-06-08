@@ -15,6 +15,7 @@ Demo workload: a **regulatory-document Q&A agent** (RAG with enforced citations)
 | 04 | [Infra, CI/CD & Observability](04-infra-cicd-observability.md) | Azure topology, Terraform modules, Workload Identity + Key Vault CSI, Helm + Skaffold dev loop, Bitbucket three gates, OTel→Splunk, MLflow |
 | 05 | [Guardrails & Security](05-guardrails-and-security.md) | Guardrail chain, PII/injection/citation enforcement, threat model, failure-modes table, secrets & tenant isolation |
 | 06 | [Roadmap & Milestones](06-roadmap-and-milestones.md) | Phases P0–P5, dependency DAG, milestones M1–M6 |
+| 07 | [Build System](07-build-system.md) | Single-source build system — `scripts/` + `Makefile` + `make ci` in all 8 repos, per-repo stage matrix, recommended quality gates, CI orchestration, troubleshooting |
 | — | [Framework Evaluation](research/framework-evaluation.md) | Evidence-based framework selection across all 8 repos — Enhesa current stack (live JDs), build-vs-adopt frontier, per-repo recommendations → ADR-016…020 |
 | — | [Backlog (Linear-ready)](backlog/TICKETS.md) | 100 stories across 6 phase-epics + cross-cutting; acceptance criteria, estimates, dependencies, labels |
 

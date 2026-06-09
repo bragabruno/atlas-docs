@@ -41,6 +41,7 @@ CREATE TABLE model_aliases (
 ```
 
 **Design notes:**
+
 - Prices are pinned at alias-creation time so historical cost in `call_records` is always reproducible.
 - `per_key_overrides` supports negotiated rates per tenant without a separate table.
 
@@ -855,6 +856,7 @@ The registry service exposes a synchronous `resolve` call used by the gateway an
 ```
 
 **Contract rules:**
+
 - If `ref` is a bare alias, `prompt_version_id` and `template` are `null`; the caller is responsible for constructing the messages array.
 - If `ref` is a `prompt_ref`, the template must be rendered with caller-supplied variables before being injected as the system message.
 - `resolve` MUST return only `prompt_versions` rows with `status = 'production'` when the semver label is `@production`; any other `@<semver>` resolves directly by version.
@@ -879,6 +881,7 @@ Triggered by consuming a message from `atlas.eval.requests.v1`.
 **Output:** The eval runner creates one `eval_runs` row, executes the prompt against every item in the dataset snapshot, and inserts one `eval_results` row per metric per run. It returns the `eval_run_id` (UUID) to the caller.
 
 **Behaviour contract:**
+
 - The runner loads the prompt template from `prompt_versions` by `id`; it does not accept inline templates in the trigger payload.
 - Each eval item is run as a non-streaming `POST /v1/chat/completions` call through the gateway (using a dedicated eval API key) so that cost and latency are recorded in `call_records`.
 - `eval_results.passed` is set by comparing `value` against `baseline_value` using metric-specific thresholds defined in the eval dataset manifest (not hardcoded here).

@@ -1,0 +1,26 @@
+# This file controls the behavior of Trunk: https://docs.trunk.io/cli
+# To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
+version: 0.1
+cli:
+  version: 1.25.0
+# Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
+plugins:
+  sources:
+    - id: trunk
+      ref: v1.10.2
+      uri: https://github.com/trunk-io/plugins
+# This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
+# atlas-docs is a Markdown + diagrams repo (no Python/ruff). markdownlint lints
+# the prose; git-diff-check flags merge-conflict markers / whitespace damage.
+# markdownlint@0.48.0 (markdownlint-cli, 2026-03-03) — pinned >=14 days old.
+lint:
+  enabled:
+    - git-diff-check
+    - markdownlint@0.48.0
+actions:
+  disabled:
+    - trunk-announce
+    - trunk-check-pre-push
+    - trunk-fmt-pre-commit
+  enabled:
+    - trunk-upgrade-available

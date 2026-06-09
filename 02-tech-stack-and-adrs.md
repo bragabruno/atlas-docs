@@ -5,6 +5,43 @@
 
 ---
 
+## Contents
+
+- [1. Full Stack Table](#1-full-stack-table)
+  - [Model Token & Pricing Reference](#model-token--pricing-reference)
+- [2. Versioning & Supply-Chain Policy](#2-versioning--supply-chain-policy)
+- [3. Language & Runtime Note](#3-language--runtime-note)
+- [4. Architecture Decision Records](#4-architecture-decision-records)
+
+| ADR | Title | Status |
+|---|---|---|
+| [ADR-001](#adr-001-build-gateway-primitives-vs-adopt-litellm--portkey) | Build Gateway Primitives vs. Adopt LiteLLM / Portkey | Accepted |
+| [ADR-002](#adr-002-python--asyncio-as-primary-runtime) | Python + asyncio as Primary Runtime | Accepted |
+| [ADR-003](#adr-003-azure--aks--full-enhesa-mirror) | Azure / AKS — Full Enhesa Mirror | Accepted |
+| [ADR-004](#adr-004-qdrant-for-vector-storage) | Qdrant for Vector Storage | Accepted |
+| [ADR-005](#adr-005-hybrid-retrieval-elasticsearch-bm25--qdrant-vector) | Hybrid Retrieval: Elasticsearch BM25 + Qdrant Vector | Accepted |
+| [ADR-006](#adr-006-hand-rolled-thin-agent-loop-vs-langgraph) | Hand-Rolled Thin Agent Loop vs. LangGraph | Accepted |
+| [ADR-007](#adr-007-kafka-as-the-event-bus) | Kafka as the Event Bus | Accepted |
+| [ADR-008](#adr-008-mlflow-for-eval--experiment-tracking) | MLflow for Eval / Experiment Tracking | Accepted |
+| [ADR-009](#adr-009-opentelemetry--splunk-vs-grafana--tempo) | OpenTelemetry → Splunk (vs. Grafana / Tempo) | Accepted |
+| [ADR-010](#adr-010-asyncpg-on-the-hot-path--sqlalchemy-20-elsewhere-alembic-for-migrations) | asyncpg Hot Path + SQLAlchemy 2.0 Elsewhere; Alembic Migrations | Accepted |
+| [ADR-011](#adr-011-hand-rolled-redis-backed-per-provider-circuit-breaker--tenacity-for-per-call-retries) | Hand-Rolled Redis Circuit Breaker + tenacity Retries | Accepted |
+| [ADR-012](#adr-012-multi-provider-via-provider-protocol--mockprovider) | Multi-Provider via Provider Protocol + MockProvider | Accepted |
+| [ADR-013](#adr-013-polyrepo-one-git-repo-per-component-over-monorepo) | Polyrepo over Monorepo | Accepted |
+| [ADR-014](#adr-014-gateway-openapi-spec-as-the-cross-repo-contract-source-of-truth) | Gateway OpenAPI Spec as Cross-Repo Contract | Accepted |
+| [ADR-015](#adr-015-atlas-prompts-owns-promptsagentsevals--eval-gate-pipeline-per-service-helm-charts--per-service-db-table-ownership) | atlas-prompts Ownership + Per-Service Helm/DB | Accepted |
+| [ADR-016](#adr-016-layered-service-architecture--dependency-injection-per-python-service) | Layered Service Architecture + DI | Accepted (2026-06-07) |
+| [ADR-017](#adr-017-eval-stack--deepeval-metrics--custom-gate) | Eval Stack — DeepEval Metrics + Custom Gate | Accepted (2026-06-07) |
+| [ADR-018](#adr-018-frontend-state-angular-signals--vitest-test-runner) | Frontend State (Angular Signals) + Vitest | Accepted (2026-06-07) |
+| [ADR-019](#adr-019-infra-inner-dev-loop-skaffold--terraform-testingpolicy) | Infra Dev-Loop (Skaffold) + Terraform Testing/Policy | Accepted (2026-06-07) |
+| [ADR-020](#adr-020-agent-runtime-invocation-surface--fastapi-trigger-kafka-later) | Agent-Runtime Invocation Surface — FastAPI Trigger | Accepted (2026-06-07) |
+| [ADR-021](#adr-021-doppler-for-developer--ci-secrets-azure-key-vault-for-aks-runtime) | Doppler for Dev/CI Secrets; Key Vault for Runtime | Accepted (2026-06-08) |
+| [ADR-022](#adr-022-per-repo-file-layout-follows-the-owning-frameworks-docs-pypa-src-as-fallback) | Per-Repo Layout Follows Framework Docs (src/ Fallback) | Accepted (2026-06-08) |
+
+- [5. Deliberately Deferred](#5-deliberately-deferred)
+
+---
+
 ## 1. Full Stack Table
 
 | Area | Choice | Rationale | Enhesa-stack match? |

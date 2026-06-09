@@ -27,24 +27,24 @@ Atlas exists to mirror the stack of Enhesa's AI Platform / AI engineering team. 
 
 ### Enhesa stack, as named in live postings
 
-| Layer | Named in postings | Atlas decision | Match |
-|---|---|---|---|
-| **Primary language** | Python (primary) | Python 3.12 + asyncio (ADR-002) | ✅ exact |
-| **Compiled/systems language** | C#/.NET, C++, Go, **or** Rust (required secondary) | Python-only | ⚠️ divergence — see below |
-| **Scala stack** | Scala + **Play Framework** (Senior AI Engineer) | out of scope (Atlas = Python AI-platform side) | ➖ intentional |
-| **Cloud** | Azure (preferred); AWS/GCP secondary | Azure (ADR-003) | ✅ exact |
-| **Orchestration** | Azure Kubernetes Service (AKS) | AKS (ADR-003) | ✅ exact |
-| **IaC** | Terraform **or** Bicep | Terraform/azurerm | ✅ (within set) |
-| **Relational DB** | SQL / PostgreSQL | Azure PostgreSQL Flexible Server (ADR-010) | ✅ exact |
-| **Search** | Elasticsearch | Elasticsearch hybrid (ADR-005) | ✅ exact |
-| **Vector DB** | Qdrant (Pinecone as alt) | Qdrant (ADR-004) | ✅ exact |
-| **Event bus** | Kafka | Kafka (ADR-007) | ✅ exact |
-| **Experiment tracking** | MLflow | MLflow (ADR-008) | ✅ exact |
-| **LLM providers** | OpenAI, Anthropic, Google | all three via Provider Protocol (ADR-012) | ✅ exact |
-| **Observability** | Splunk | OTel → Splunk (ADR-009) | ✅ exact |
-| **CI/CD** | Bitbucket Pipelines, GitHub Actions, **Azure DevOps** | Bitbucket Pipelines (ADR-013) | ✅ (within set) |
-| **Containers/registry** | Docker; (AKS implies a registry) | Docker + ACR | ✅ |
-| **AI-assisted dev** | GitHub Copilot, **Claude Code**, Cursor | (dev-time culture) | ✅ aligned |
+| Layer                         | Named in postings                                     | Atlas decision                                 | Match                    |
+|-------------------------------|-------------------------------------------------------|------------------------------------------------|--------------------------|
+| **Primary language**          | Python (primary)                                      | Python 3.12 + asyncio (ADR-002)                | ✅ exact                  |
+| **Compiled/systems language** | C#/.NET, C++, Go, **or** Rust (required secondary)    | Python-only                                    | ⚠️ divergence — see below |
+| **Scala stack**               | Scala + **Play Framework** (Senior AI Engineer)       | out of scope (Atlas = Python AI-platform side) | ➖ intentional            |
+| **Cloud**                     | Azure (preferred); AWS/GCP secondary                  | Azure (ADR-003)                                | ✅ exact                  |
+| **Orchestration**             | Azure Kubernetes Service (AKS)                        | AKS (ADR-003)                                  | ✅ exact                  |
+| **IaC**                       | Terraform **or** Bicep                                | Terraform/azurerm                              | ✅ (within set)           |
+| **Relational DB**             | SQL / PostgreSQL                                      | Azure PostgreSQL Flexible Server (ADR-010)     | ✅ exact                  |
+| **Search**                    | Elasticsearch                                         | Elasticsearch hybrid (ADR-005)                 | ✅ exact                  |
+| **Vector DB**                 | Qdrant (Pinecone as alt)                              | Qdrant (ADR-004)                               | ✅ exact                  |
+| **Event bus**                 | Kafka                                                 | Kafka (ADR-007)                                | ✅ exact                  |
+| **Experiment tracking**       | MLflow                                                | MLflow (ADR-008)                               | ✅ exact                  |
+| **LLM providers**             | OpenAI, Anthropic, Google                             | all three via Provider Protocol (ADR-012)      | ✅ exact                  |
+| **Observability**             | Splunk                                                | OTel → Splunk (ADR-009)                        | ✅ exact                  |
+| **CI/CD**                     | Bitbucket Pipelines, GitHub Actions, **Azure DevOps** | Bitbucket Pipelines (ADR-013)                  | ✅ (within set)           |
+| **Containers/registry**       | Docker; (AKS implies a registry)                      | Docker + ACR                                   | ✅                        |
+| **AI-assisted dev**           | GitHub Copilot, **Claude Code**, Cursor               | (dev-time culture)                             | ✅ aligned                |
 
 Sources: Enhesa [AI Staff Software Engineer (Lisbon)](https://job-boards.greenhouse.io/enhesa/jobs/4186034009), [Senior AI Engineer (Lisbon)](https://job-boards.greenhouse.io/enhesa/jobs/4078742009), [Senior Cloud Engineer (Lisbon)](https://job-boards.greenhouse.io/enhesa/jobs/4087540009), [Enhesa Careers](https://www.enhesa.com/careers/).
 

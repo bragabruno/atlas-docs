@@ -31,16 +31,16 @@ Following the framework evaluation (`../research/framework-evaluation.md`), thes
 
 ### Epic summary
 
-| Epic | Phase | Title | Primary repo(s) | Stories | Points |
-|---|---|---|---|---|---|
-| `INF` | P0 | Infra foundation (Azure/AKS) | atlas-infra (+all) | 16 | 71 |
-| `GW` | P1 | LLM Gateway core | atlas-gateway | 22 | 92 |
-| `REG` | P2 | Prompt registry + eval gate | atlas-prompts (+gateway) | 14 | 64 |
-| `GRD` | P3 | Guardrails | atlas-gateway | 12 | 49 |
-| `AGT` | P4 | Agent runtime + MCP | atlas-agent-runtime, atlas-mcp-* | 16 | 80 |
-| `FE` | P1→P4 | Frontend (RegDoc Q&A app) | atlas-frontend | 9 | 27 |
-| `POL` | P5 | Polish | atlas-gateway, atlas-infra | 7 | 36 |
-| `XCUT` | — | Cross-cutting / hardening | atlas-docs, all | 6 | 20 |
+| Epic   | Phase | Title                        | Primary repo(s)                  | Stories | Points |
+|--------|-------|------------------------------|----------------------------------|---------|--------|
+| `INF`  | P0    | Infra foundation (Azure/AKS) | atlas-infra (+all)               | 16      | 71     |
+| `GW`   | P1    | LLM Gateway core             | atlas-gateway                    | 22      | 92     |
+| `REG`  | P2    | Prompt registry + eval gate  | atlas-prompts (+gateway)         | 14      | 64     |
+| `GRD`  | P3    | Guardrails                   | atlas-gateway                    | 12      | 49     |
+| `AGT`  | P4    | Agent runtime + MCP          | atlas-agent-runtime, atlas-mcp-* | 16      | 80     |
+| `FE`   | P1→P4 | Frontend (RegDoc Q&A app)    | atlas-frontend                   | 9       | 27     |
+| `POL`  | P5    | Polish                       | atlas-gateway, atlas-infra       | 7       | 36     |
+| `XCUT` | —     | Cross-cutting / hardening    | atlas-docs, all                  | 6       | 20     |
 
 **Totals: 102 stories · ~439 points.** Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21` (gateway online with Mock + published contract), then `REG` (the eval-gate demo). The basic chat UI (`FE-1..FE-5`) can start once `GW-7` (SSE) lands.
 

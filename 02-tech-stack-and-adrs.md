@@ -37,6 +37,7 @@
 | [ADR-020](#adr-020-agent-runtime-invocation-surface--fastapi-trigger-kafka-later) | Agent-Runtime Invocation Surface — FastAPI Trigger | Accepted (2026-06-07) |
 | [ADR-021](#adr-021-doppler-for-developer--ci-secrets-azure-key-vault-for-aks-runtime) | Doppler for Dev/CI Secrets; Key Vault for Runtime | Accepted (2026-06-08) |
 | [ADR-022](#adr-022-per-repo-file-layout-follows-the-owning-frameworks-docs-pypa-src-as-fallback) | Per-Repo Layout Follows Framework Docs (src/ Fallback) | Accepted (2026-06-08) |
+| [ADR-023](#adr-023-optional-local-offline-dev-loop-docker-compose-alongside-the-aks-loop) | Optional Local Offline Dev Loop (docker-compose) | Accepted (2026-06-09) |
 
 - [5. Deliberately Deferred](#5-deliberately-deferred)
 
@@ -685,6 +686,33 @@ Each repo follows the **recommended file structure of its owning framework's doc
 - **`app/` everywhere:** keeps the generic, collision-prone `app` import name and the `pythonpath` shim, which is wrong for a distributable library like `atlas-prompts`.
 
 *Implemented (2026-06-08, pure-structural, behavior-preserving): `atlas-mcp-doc-search` #10, `atlas-mcp-citations` #9, `atlas-prompts` #12, `atlas-frontend` #10; docs synced in this PR.*
+
+---
+
+### ADR-023 Optional Local Offline Dev Loop (docker-compose) Alongside the AKS Loop
+
+**Status:** Accepted (2026-06-09)
+
+**Context.**
+ADR-019 chose **Skaffold against the AKS `dev` namespace** as the dev loop and explicitly declined a local Docker Compose target. That loop is high-fidelity but runs against **live Azure PaaS** — it costs money per developer-hour and requires Azure network access, which blocks fully-offline work, cheap onboarding, and hermetic local iteration. Separately, every subscription service in [§1](#1-full-stack-table) has a free local equivalent (Azurite for Blob, lowkey-vault for Key Vault, Redpanda for Kafka, OpenSearch for Elasticsearch, the in-repo `MockProvider` for LLMs, etc.), and the services read all backends from environment variables — no Azure SDK calls — so pointing them at local containers needs no credential code, only env wiring.
+
+**Decision.**
+Add an **optional** local offline dev loop using docker-compose, **alongside** (not replacing) the AKS loop. The umbrella `compose.dev.yaml` lives in `atlas-infra/local/`, builds the five service images from their sibling repos, and wires them to free local backings. The full service→mock mapping, pinned images, fidelity caveats, and env seam are documented in [research/local-mock-stack.md](research/local-mock-stack.md). ADR-019's AKS loop remains the **default and the source of truth for infrastructure/security validation**; the compose loop is for **functional** development only.
+
+**Consequences.**
+
+- (+) Zero-cost, offline, hermetic local iteration; faster onboarding (`make local-up`).
+- (+) Reuses the existing env-driven config seam — no per-service credential code, only `values-local`/`.env`.
+- (+) Forces two latent gaps closed: `atlas-gateway` and `atlas-agent-runtime` gain the Dockerfiles the Skaffold umbrella already referenced.
+- (−) A second dev path to keep working as charts/env evolve; mitigated by keeping it functional-only and CI-smoke-testing `compose up`.
+- (−) **Fidelity gap is real and intentional:** the local loop does not reproduce CMK, private endpoints, Workload Identity, TLS-only paths, or network ACLs. Security/infra changes must still be validated on AKS `dev`.
+
+**Alternatives rejected.**
+
+- **Keep AKS-only (status quo, ADR-019):** leaves no offline/zero-cost path; rejected now that the free-equivalent mapping exists.
+- **Replace the AKS loop with compose:** loses the high-fidelity Azure path that infra/security work depends on; the two are complementary, not exclusive.
+
+*Amends ADR-019 (which stated "no local Docker Compose target"). Artifacts: `atlas-infra/local/compose.dev.yaml`, Dockerfiles in `atlas-gateway` / `atlas-agent-runtime`.*
 
 ---
 

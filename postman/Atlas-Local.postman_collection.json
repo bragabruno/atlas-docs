@@ -1,0 +1,163 @@
+{
+  "info": {
+    "name": "Atlas Local (MockProvider)",
+    "description": "Test the local Atlas stack with zero API spend — every chat/embeddings call uses the gateway's built-in MockProvider (model id `mock`).\n\n**Setup** — pick one:\n- Standalone gateway on :8000 (matches the default `baseUrl`): `cd atlas-gateway && docker build -t atlas-gateway . && docker run --rm -p 8000:8000 atlas-gateway`\n- Full stack: `cd atlas-infra && make local-up` → gateway is on **http://localhost:8090** (set `baseUrl` accordingly), agent-runtime on :8083.\n\n**Auth**: every gateway request sends `Authorization: Bearer {{apiKey}}`. Valid keys come from the gateway's `ATLAS_API_KEYS` env (JSON list); the dev default is `dev-key`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{apiKey}}", "type": "string" }]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string",
+      "description": "Gateway origin. Standalone docker run → :8000. Full compose stack (make local-up) → http://localhost:8090."
+    },
+    {
+      "key": "agentUrl",
+      "value": "http://localhost:8083",
+      "type": "string",
+      "description": "Agent-runtime origin (compose stack maps it to host :8083)."
+    },
+    {
+      "key": "apiKey",
+      "value": "dev-key",
+      "type": "string",
+      "description": "Gateway API key — dev default from ATLAS_API_KEYS."
+    }
+  ],
+  "item": [
+    {
+      "name": "Bulletproof trio",
+      "description": "Three requests that prove the platform end-to-end with zero spend: the routing surface → a real call through the whole request path → the cost trail.",
+      "item": [
+        {
+          "name": "1. List models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "models"]
+            },
+            "description": "Proves the **routing surface**: auth works (401 without the bearer key) and the model list includes `mock` (MockProvider) plus the Atlas aliases (`smart`, `deep`, `fast`, `balanced`, `embed`) and any locally wired Ollama models. Expect 200."
+          }
+        },
+        {
+          "name": "2. Chat completion (mock)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What does GDPR Article 6 require?\" }\n  ],\n  \"stream\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            },
+            "description": "Proves a **real call through the whole platform** — auth → ChatService (rate-limit/cache/guardrails when wired) → provider — with zero spend. MockProvider echoes the last user message: expect 200 with `choices[0].message.content` = `[mock:mock] echo: What does GDPR Article 6 require?` and a populated `usage` block."
+          }
+        },
+        {
+          "name": "3. Usage (cost trail)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/usage",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "usage"],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2026-01-01",
+                  "description": "Optional ISO date (YYYY-MM-DD); defaults to the 1st of the current month.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Proves the **cost trail**: per-app/model token + cost aggregates from the gateway's `call_records` table. Expect 200 with `{since, rows}` when the gateway has `ATLAS_DB_URL` configured (the compose stack wires it to the bundled Postgres; rows stay empty until the accounting recorder is wired into the request path). Without `ATLAS_DB_URL` (e.g. the standalone :8000 container) this returns **503 \"usage data unavailable: DB not configured\"** — config-gated by design, not a failure."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Riskier — test first",
+      "description": "Useful but with more moving parts — verify these before relying on them in demos.",
+      "item": [
+        {
+          "name": "Embeddings (mock)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"input\": \"hello atlas\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/embeddings",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "embeddings"]
+            },
+            "description": "MockProvider implements `embed()` too — expect 200 with one 8-dimensional vector in `data[0].embedding` (zero spend). `input` also accepts a list of strings. Real embedding aliases (`embed` → OpenAI) require a provider key."
+          }
+        },
+        {
+          "name": "Chat completion (mock, streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Stream me something.\" }\n  ],\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            },
+            "description": "Same endpoint with `stream: true` → Server-Sent Events: a role chunk, content delta chunks, a final chunk with `finish_reason` + `usage`, then `data: [DONE]`. Postman shows the raw event stream in the response body (it won't pretty-print SSE) — that's expected."
+          }
+        },
+        {
+          "name": "Agent runtime — health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{agentUrl}}/healthz",
+              "host": ["{{agentUrl}}"],
+              "path": ["healthz"]
+            },
+            "description": "Liveness of the agent-runtime FastAPI surface (no auth). Expect 200 `{\"status\":\"ok\"}`. The agent-runtime realistically only runs via the compose stack (host :8083) — it needs the gateway and Postgres reachable by service name."
+          }
+        },
+        {
+          "name": "Agent runtime — run regdoc-qa",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_name\": \"regdoc-qa\",\n  \"user_message\": \"What does GDPR Article 6 require for consent?\"\n}"
+            },
+            "url": {
+              "raw": "{{agentUrl}}/v1/agent/runs",
+              "host": ["{{agentUrl}}"],
+              "path": ["v1", "agent", "runs"]
+            },
+            "description": "Triggers a bounded agent run (hard caps on iterations/tokens/wall-time). Expect **201** with `{run_id, status, iterations, tokens_used, content, ...}`; follow up with `GET {{agentUrl}}/v1/agent/runs/<run_id>` for the persisted steps.\n\n**Dependencies — test before relying on it:** the agent container must reach the gateway (compose wires it), and the bundled spec's `model_alias` is `gpt-oss:120b-cloud` (local Ollama — free, but requires Ollama running on the host; edit `atlas-agent-runtime/agents/regdoc-qa.yaml` to `mock` for a fully offline run). The full RAG/citation path additionally depends on MCP doc-search/citations + Qdrant/Elasticsearch + an ingested corpus, so citation-grounded answers may error or refuse locally. Persistence (non-null `run_id` + the GET endpoint) needs the compose Postgres; 404 = unknown agent name, 422 = a hard cap was breached."
+          }
+        }
+      ]
+    }
+  ]
+}

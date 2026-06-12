@@ -90,3 +90,39 @@ docker compose -f local/compose.dev.yaml exec \
 
 Rows stay empty until the accounting recorder is wired into the request path
 (GW-14/15) — a 200 with `{"since": "...", "rows": []}` is the working contract.
+
+## Local stack credentials (committed dev placeholders — not secrets)
+
+Everything below is a local-only placeholder defined in
+[`atlas-infra/local/compose.dev.yaml`](../../atlas-infra/local/compose.dev.yaml)
+(+ `frontend-config.json`). Real deployments source secrets from Azure Key
+Vault via the CSI driver (atlas-docs/04 §3) — none of these exist outside the
+offline dev loop.
+
+### Application surfaces
+
+| Service | URL | Auth |
+|---|---|---|
+| Gateway API | http://localhost:8090 | `Authorization: Bearer dev-key` |
+| Frontend (Ledger UI) | http://localhost:8080 | none (sends `dev-key` to the gateway itself) |
+| Agent runtime API | http://localhost:8083 | none |
+| MCP doc-search / citations | :8081 / :8082 (`/mcp`) | none |
+
+### Data stores
+
+| Store | Host | Credentials |
+|---|---|---|
+| Postgres | `localhost:5432`, db `atlas` | `atlas` / `atlas` |
+| Valkey (Redis) | `localhost:6379` | none |
+| Qdrant | http://localhost:6333 (gRPC :6334) | none — dashboard at `/dashboard` |
+| OpenSearch | http://localhost:9200 | none — security plugin disabled (the `Atlas-local-9200` admin password in compose is unused while security is off) |
+| Redpanda (Kafka) | `localhost:9092` | none — PLAINTEXT listener |
+
+### Platform UIs
+
+| Service | URL | Credentials |
+|---|---|---|
+| MLflow | http://localhost:5500 | none |
+| OpenObserve (Splunk stand-in) | http://localhost:5080 | `dev@atlas.local` / `Atlas-local-5080` |
+| Azurite (Blob/Queue/Table) | :10000 / :10001 / :10002 | Microsoft's well-known emulator account: `devstoreaccount1` / `Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==` (public, documented) |
+| lowkey-vault (Key Vault double) | https://localhost:8443 | not started by default (`--profile parity`); self-signed cert, no auth |

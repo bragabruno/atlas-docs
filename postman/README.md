@@ -123,6 +123,19 @@ offline dev loop.
 | Service | URL | Credentials |
 |---|---|---|
 | MLflow | http://localhost:5500 | none |
+| Redpanda Console (Kafka UI) | http://localhost:8086 | none — browse topics like `atlas.calls.v1` |
+| RedisInsight (Valkey UI) | http://localhost:5540 | none — connect to host `valkey`, port `6379` if not pre-registered |
 | OpenObserve (Splunk stand-in) | http://localhost:5080 | `dev@atlas.local` / `Atlas-local-5080` |
 | Azurite (Blob/Queue/Table) | :10000 / :10001 / :10002 | Microsoft's well-known emulator account: `devstoreaccount1` / `Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==` (public, documented) |
 | lowkey-vault (Key Vault double) | https://localhost:8443 | not started by default (`--profile parity`); self-signed cert, no auth |
+
+### MLflow SQLite snapshot (for DBeaver)
+
+MLflow's tracking DB is SQLite inside the docker volume. To browse it in
+DBeaver, refresh the local snapshot the "Atlas MLflow (snapshot)" connection
+points at:
+
+```bash
+docker cp atlas-local-mlflow-1:/mlflow/mlflow.db \
+  ~/Library/DBeaverData/snapshots/mlflow-snapshot.db
+```

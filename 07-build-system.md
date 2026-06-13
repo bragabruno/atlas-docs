@@ -84,9 +84,9 @@ see ADR-021 context and the repo `.trunk/trunk.yaml`). `✓` = active, `↷` = s
 
 | Repo | lint | test | coverage | build | docker | infra | security | extras |
 |---|---|---|---|---|---|---|---|---|
-| `atlas-gateway` | ruff + pyright + dep-audit | pytest | ↷ (pytest-cov) | import + OpenAPI export/drift | ✓ Dockerfile | helm render | ✓ | — |
+| `atlas-gateway` | ruff + pyright + dep-audit | pytest | ↷ (pytest-cov) | import + OpenAPI export/drift | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) + integration job |
 | `atlas-agent-runtime` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) |
-| `atlas-mcp-doc-search` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | — |
+| `atlas-mcp-doc-search` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) + integration job |
 | `atlas-mcp-citations` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | — |
 | `atlas-prompts` | ruff + pyright + dep-audit + schema-lint | pytest | ↷ | import | ↷ (not a service) | ↷ (no chart) | ✓ | `eval.sh` (Gate-2) |
 | `atlas-frontend` | eslint + prettier + tsc | vitest | ↷ (@vitest/coverage) | ng build | ✓ Dockerfile | helm render | npm audit | — |
@@ -108,6 +108,16 @@ Notes:
   `ci.yml` (SHA-pinned actions) that mirrors the Bitbucket Gate-1 on the GitHub
   remote, plus a Trunk-pin age audit in `dep_audit.py` and a Trunk CLI sha256
   lock — all invoked through the same scripts.
+- **`atlas-gateway`** and **`atlas-mcp-doc-search`** carry a GitHub Actions
+  `ci.yml` that runs the raw tools directly (`ruff check` + `ruff format --check`,
+  strict `pyright`, offline `pytest`) — they have no `Makefile`/`scripts` harness
+  yet, so the workflow is self-contained rather than script-orchestrated. Each
+  also adds a **`Gate 1c` integration job**: an opt-in `pytest -m integration`
+  suite (the `integration` optional-dependency extra pins `testcontainers`) that
+  spins ephemeral backends via Docker — Postgres for the gateway's accounting
+  persistence (GW-14/15), Elasticsearch + Qdrant for doc-search ingestion
+  (AGT-8). These are excluded from the default offline run (`addopts =
+  "-m 'not integration'"`), so the offline suite stays offline.
 
 ---
 

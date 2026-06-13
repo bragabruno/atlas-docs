@@ -87,9 +87,9 @@ see ADR-021 context and the repo `.trunk/trunk.yaml`). `✓` = active, `↷` = s
 | `atlas-gateway` | ruff + pyright + dep-audit | pytest | ↷ (pytest-cov) | import + OpenAPI export/drift | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) + integration job |
 | `atlas-agent-runtime` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) |
 | `atlas-mcp-doc-search` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) + integration job |
-| `atlas-mcp-citations` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | — |
-| `atlas-prompts` | ruff + pyright + dep-audit + schema-lint | pytest | ↷ | import | ↷ (not a service) | ↷ (no chart) | ✓ | `eval.sh` (Gate-2) |
-| `atlas-frontend` | eslint + prettier + tsc | vitest | ↷ (@vitest/coverage) | ng build | ✓ Dockerfile | helm render | npm audit | — |
+| `atlas-mcp-citations` | ruff + pyright + dep-audit | pytest | ↷ | import | ✓ Dockerfile | helm render | ✓ | `.github/workflows/ci.yml` (GH Actions) + integration job |
+| `atlas-prompts` | ruff + pyright + dep-audit + schema-lint | pytest | ↷ | import | ↷ (not a service) | ↷ (no chart) | ✓ | `.github/workflows/ci.yml` (GH Actions) + `eval.sh` (Gate-2) |
+| `atlas-frontend` | eslint + prettier + tsc | vitest | ↷ (@vitest/coverage) | ng build | ✓ Dockerfile | helm render | npm audit | `.github/workflows/ci.yml` (GH Actions) |
 | `atlas-infra` | terraform fmt + tflint | per-dir `terraform validate` | ↷ | ↷ | ↷ | helm lint platform charts | Checkov + Trivy + gitleaks | extends existing cloud `Makefile` |
 | `atlas-docs` | markdownlint | `validate_diagrams.sh` (Mermaid + PlantUML) | ↷ | ↷ | ↷ | ↷ | gitleaks | — |
 
@@ -104,20 +104,25 @@ Notes:
   is advisory (`ATLAS_INFRA_STRICT=1` to enforce) because the MLflow/Elasticsearch
   wrapper charts are deployed with runtime `--set` injection and don't render from
   static overlays alone.
-- **`atlas-agent-runtime`** and **`atlas-prompts`** also carry a GitHub Actions
-  `ci.yml` (SHA-pinned actions) that mirrors the Bitbucket Gate-1 on the GitHub
-  remote, plus a Trunk-pin age audit in `dep_audit.py` and a Trunk CLI sha256
-  lock — all invoked through the same scripts.
-- **`atlas-gateway`** and **`atlas-mcp-doc-search`** carry a GitHub Actions
-  `ci.yml` that runs the raw tools directly (`ruff check` + `ruff format --check`,
-  strict `pyright`, offline `pytest`) — they have no `Makefile`/`scripts` harness
-  yet, so the workflow is self-contained rather than script-orchestrated. Each
-  also adds a **`Gate 1c` integration job**: an opt-in `pytest -m integration`
-  suite (the `integration` optional-dependency extra pins `testcontainers`) that
-  spins ephemeral backends via Docker — Postgres for the gateway's accounting
-  persistence (GW-14/15), Elasticsearch + Qdrant for doc-search ingestion
-  (AGT-8). These are excluded from the default offline run (`addopts =
-  "-m 'not integration'"`), so the offline suite stays offline.
+- **GitHub Actions `ci.yml` now exists on every repo**, in two flavours:
+  - **Script-orchestrated** (`atlas-mcp-citations`, `atlas-infra`, `atlas-docs`):
+    the workflow calls the versioned `scripts/*.sh` (Trunk-managed ruff, pyright,
+    the `dep_audit.py` age audit, diagram validation), the same gates `make ci`
+    runs locally.
+  - **Raw-tools, self-contained** (`atlas-gateway`, `atlas-agent-runtime`,
+    `atlas-mcp-doc-search`, `atlas-prompts`): these have no `Makefile`/`scripts`
+    harness yet, so the workflow runs the tools directly — `ruff check` +
+    `ruff format --check`, strict `pyright`, offline `pytest`. `atlas-frontend`
+    follows the same shape with npm (`eslint`/`prettier`, `tsc --noEmit`,
+    Vitest). All third-party actions are SHA-pinned (supply-chain rule).
+- **`Gate 1c` integration jobs** run an opt-in `pytest -m integration` suite via
+  Docker (`testcontainers`, pinned in an `integration` optional-dependency extra)
+  on the three repos with real-backend seams: **`atlas-gateway`** (ephemeral
+  Postgres → accounting persistence, GW-14/15), **`atlas-mcp-doc-search`**
+  (Elasticsearch + Qdrant → ingestion, AGT-8), and **`atlas-mcp-citations`**
+  (Elasticsearch + Qdrant → citation verification, ES-first/Qdrant-fallback).
+  Integration tests are excluded from the default run (`addopts =
+  "-m 'not integration'"`), so the offline suites stay offline.
 
 ---
 

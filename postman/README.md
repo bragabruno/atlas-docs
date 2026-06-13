@@ -192,9 +192,9 @@ offline dev loop.
 
 | Service | URL | Auth |
 |---|---|---|
-| Gateway API | http://localhost:8090 | `Authorization: Bearer dev-key` |
-| Frontend (Ledger UI) | http://localhost:8080 | none (sends `dev-key` to the gateway itself) |
-| Agent runtime API | http://localhost:8083 | none |
+| Gateway API | `http://localhost:8090` | `Authorization: Bearer dev-key` |
+| Frontend (Ledger UI) | `http://localhost:8080` | none (sends `dev-key` to the gateway itself) |
+| Agent runtime API | `http://localhost:8083` | none |
 | MCP doc-search / citations | :8081 / :8082 (`/mcp`) | none |
 
 ### Data stores
@@ -203,20 +203,20 @@ offline dev loop.
 |---|---|---|
 | Postgres | `localhost:5432`, db `atlas` | `atlas` / `atlas` |
 | Valkey (Redis) | `localhost:6379` | none |
-| Qdrant | http://localhost:6333 (gRPC :6334) | none — dashboard at `/dashboard` |
-| Elasticsearch | http://localhost:9200 | none — xpack security disabled locally (real ES 9.4.0; replaced the OpenSearch substitute, which the pinned client refuses) |
+| Qdrant | `http://localhost:6333` (gRPC :6334) | none — dashboard at `/dashboard` |
+| Elasticsearch | `http://localhost:9200` | none — xpack security disabled locally (real ES 9.4.0; replaced the OpenSearch substitute, which the pinned client refuses) |
 | Redpanda (Kafka) | `localhost:9092` | none — PLAINTEXT listener |
 
 ### Platform UIs
 
 | Service | URL | Credentials |
 |---|---|---|
-| MLflow | http://localhost:5500 | none |
-| Redpanda Console (Kafka UI) | http://localhost:8086 | none — browse topics like `atlas.calls.v1` |
-| RedisInsight (Valkey UI) | http://localhost:5540 | none — connect to host `valkey`, port `6379` if not pre-registered |
-| OpenObserve (Splunk stand-in) | http://localhost:5080 | `dev@atlas.local` / `Atlas-local-5080` |
+| MLflow | `http://localhost:5500` | none |
+| Redpanda Console (Kafka UI) | `http://localhost:8086` | none — browse topics like `atlas.calls.v1` |
+| RedisInsight (Valkey UI) | `http://localhost:5540` | none — connect to host `valkey`, port `6379` if not pre-registered |
+| OpenObserve (Splunk stand-in) | `http://localhost:5080` | `dev@atlas.local` / `Atlas-local-5080` |
 | Azurite (Blob/Queue/Table) | :10000 / :10001 / :10002 | Microsoft's well-known emulator account: `devstoreaccount1` / `Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==` (public, documented) |
-| lowkey-vault (Key Vault double) | https://localhost:8443 | not started by default (`--profile parity`); self-signed cert, no auth |
+| lowkey-vault (Key Vault double) | `https://localhost:8443` | not started by default (`--profile parity`); self-signed cert, no auth |
 
 ### MLflow SQLite snapshot (for DBeaver)
 

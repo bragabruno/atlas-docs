@@ -88,8 +88,53 @@ docker compose -f local/compose.dev.yaml exec \
   gateway alembic upgrade head
 ```
 
-Rows stay empty until the accounting recorder is wired into the request path
-(GW-14/15) — a 200 with `{"since": "...", "rows": []}` is the working contract.
+The accounting recorder (GW-14/15) is wired in the compose loop, so rows
+accumulate from real traffic — but only after the api_keys row exists
+(`seed-db` below creates it; without it the FK silently blocks recording,
+by GW-15's never-fail-the-request contract).
+
+## Fill the databases (mock traffic + seeders)
+
+Accounting (GW-14/15) is wired in the local loop: every **non-streaming**
+completion writes a priced `call_records` row and emits an `atlas.calls.v1`
+event (streaming deliberately skips accounting — first-token latency).
+Everything below is zero-spend (`model=mock`) and runnable from docker alone.
+
+```bash
+cd atlas-infra
+
+# 1. Seed Postgres (api_keys, model_aliases, N synthetic call_records) and
+#    emit matching Kafka events (watch them in Redpanda Console :8086):
+docker compose -f local/compose.dev.yaml --profile jobs run --rm seed-db \
+  --records 500 --kafka
+
+# 2. Seed the Elasticsearch + Qdrant corpus (real golden-dataset source_ids,
+#    mock 8-dim embeddings — fills the doc_chunks index/collection):
+docker compose -f local/compose.dev.yaml run --rm \
+  -e ATLAS_GATEWAY_URL=http://gateway:8000 -e ATLAS_GATEWAY_API_KEY=dev-key \
+  -e ATLAS_EMBED_MODEL=mock \
+  -e ATLAS_ES_URL=http://elasticsearch:9200 -e ATLAS_QDRANT_URL=http://qdrant:6333 \
+  --entrypoint sh mcp-doc-search \
+  -c "python scripts/make_seed_corpus.py --docs 40 > /tmp/corpus.jsonl && \
+      python scripts/ingest.py --source /tmp/corpus.jsonl"
+
+# 3. Stress traffic — Locust web UI at http://localhost:8089:
+docker compose -f local/compose.dev.yaml --profile loadtest up locust
+#    ...or headless (20 users, 60s):
+docker compose -f local/compose.dev.yaml --profile loadtest run --rm locust \
+  -f /mnt/locust/locustfile.py --headless -u 20 -r 5 -t 60s
+
+# 4. Contract fuzzing from the committed OpenAPI spec (host venv:
+#    pip install -e "atlas-gateway[loadtest]"):
+schemathesis run atlas-gateway/openapi.json --url http://localhost:8090 \
+  -H "Authorization: Bearer dev-key"
+```
+
+What each fills: chat traffic → `call_records` + `atlas.calls.v1` + Valkey
+cache · agent runs (`regdoc-qa-mock`) → `agent_runs`/`agent_steps` · corpus
+ingest → Elasticsearch `doc_chunks` + Qdrant `doc_chunks` · seed-db → everything
+relational at once. Host-venv alternative for iterating on the locustfile:
+`pip install -e "atlas-gateway[loadtest]" && locust -f atlas-gateway/loadtest/locustfile.py`.
 
 ## Local stack credentials (committed dev placeholders — not secrets)
 
@@ -115,7 +160,7 @@ offline dev loop.
 | Postgres | `localhost:5432`, db `atlas` | `atlas` / `atlas` |
 | Valkey (Redis) | `localhost:6379` | none |
 | Qdrant | http://localhost:6333 (gRPC :6334) | none — dashboard at `/dashboard` |
-| OpenSearch | http://localhost:9200 | none — security plugin disabled (the `Atlas-local-9200` admin password in compose is unused while security is off) |
+| Elasticsearch | http://localhost:9200 | none — xpack security disabled locally (real ES 9.4.0; replaced the OpenSearch substitute, which the pinned client refuses) |
 | Redpanda (Kafka) | `localhost:9092` | none — PLAINTEXT listener |
 
 ### Platform UIs

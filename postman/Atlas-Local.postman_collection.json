@@ -1,161 +1,1615 @@
 {
   "info": {
-    "name": "Atlas Local (MockProvider)",
-    "description": "Test the local Atlas stack with zero API spend — every chat/embeddings call uses the gateway's built-in MockProvider (model id `mock`).\n\n**Setup** — pick one:\n- Standalone gateway on :8000 (matches the default `baseUrl`): `cd atlas-gateway && docker build -t atlas-gateway . && docker run --rm -p 8000:8000 atlas-gateway`\n- Full stack: `cd atlas-infra && make local-up` → gateway is on **http://localhost:8090** (set `baseUrl` accordingly), agent-runtime on :8083.\n\n**Auth**: every gateway request sends `Authorization: Bearer {{apiKey}}`. Valid keys come from the gateway's `ATLAS_API_KEYS` env (JSON list); the dev default is `dev-key`.",
+    "name": "Atlas \u2014 Full Local Stack",
+    "description": "Comprehensive collection for the local Atlas stack \u2014 every first-party API (gateway, agent-runtime, both MCP servers) plus the data-plane stores, all zero-spend via MockProvider.\n\n**Setup:** `cd atlas-infra && make local-up`, then import the **Atlas Local (compose)** environment and select it. For the standalone gateway-only container on :8000 use the **Atlas Gateway Standalone** environment.\n\n**Auth:** gateway requests inherit collection-level `Authorization: Bearer {{api_key}}` (dev default `dev-key` from `ATLAS_API_KEYS`). Agent-runtime, MCP, and store requests override to No Auth (OpenObserve = Basic).\n\n**Variables** start with compose defaults; the environment files override them. `run_id` and `mcp_*_session` are populated at runtime by test scripts.\n\n**MCP order matters:** run the MCP folder requests top-to-bottom (initialize first captures the session id). See the README for the handshake explainer.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{apiKey}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
   },
   "variable": [
     {
-      "key": "baseUrl",
-      "value": "http://localhost:8000",
+      "key": "gateway_url",
+      "value": "http://localhost:8090",
       "type": "string",
-      "description": "Gateway origin. Standalone docker run → :8000. Full compose stack (make local-up) → http://localhost:8090."
+      "description": "Gateway origin. Compose -> :8090. Standalone -> :8000."
     },
     {
-      "key": "agentUrl",
+      "key": "agent_url",
       "value": "http://localhost:8083",
       "type": "string",
-      "description": "Agent-runtime origin (compose stack maps it to host :8083)."
+      "description": "Agent-runtime origin (compose host :8083)."
     },
     {
-      "key": "apiKey",
+      "key": "mcp_docsearch_url",
+      "value": "http://localhost:8081",
+      "type": "string",
+      "description": "MCP doc-search origin (compose host :8081)."
+    },
+    {
+      "key": "mcp_citations_url",
+      "value": "http://localhost:8082",
+      "type": "string",
+      "description": "MCP citations origin (compose host :8082)."
+    },
+    {
+      "key": "es_url",
+      "value": "http://localhost:9200",
+      "type": "string",
+      "description": "Elasticsearch REST."
+    },
+    {
+      "key": "qdrant_url",
+      "value": "http://localhost:6333",
+      "type": "string",
+      "description": "Qdrant REST."
+    },
+    {
+      "key": "mlflow_url",
+      "value": "http://localhost:5500",
+      "type": "string",
+      "description": "MLflow tracking server (host 5500 \u2014 :5000 collides with macOS AirPlay)."
+    },
+    {
+      "key": "openobserve_url",
+      "value": "http://localhost:5080",
+      "type": "string",
+      "description": "OpenObserve UI/API."
+    },
+    {
+      "key": "api_key",
       "value": "dev-key",
       "type": "string",
-      "description": "Gateway API key — dev default from ATLAS_API_KEYS."
+      "description": "Gateway bearer key \u2014 dev default from ATLAS_API_KEYS."
+    },
+    {
+      "key": "openobserve_user",
+      "value": "dev@atlas.local",
+      "type": "string"
+    },
+    {
+      "key": "openobserve_pass",
+      "value": "Atlas-local-5080",
+      "type": "string"
+    },
+    {
+      "key": "demo_source_id",
+      "value": "EUR-REACH-Annex-XVII-Entry-27",
+      "type": "string",
+      "description": "A real golden source_id in the seeded corpus (citations + store lookups)."
+    },
+    {
+      "key": "run_id",
+      "value": "",
+      "type": "string",
+      "description": "Set by the agent-run test script."
+    },
+    {
+      "key": "mcp_docsearch_session",
+      "value": "",
+      "type": "string",
+      "description": "Set by the doc-search initialize test script."
+    },
+    {
+      "key": "mcp_citations_session",
+      "value": "",
+      "type": "string",
+      "description": "Set by the citations initialize test script."
     }
   ],
   "item": [
     {
-      "name": "Bulletproof trio",
-      "description": "Three requests that prove the platform end-to-end with zero spend: the routing surface → a real call through the whole request path → the cost trail.",
+      "name": "Gateway",
+      "description": "OpenAI-compatible LLM gateway (the single choke point). Collection-level Bearer `{{api_key}}` is inherited by every request here except `/healthz`. Base `{{gateway_url}}` \u2014 compose :8090, standalone :8000.",
       "item": [
         {
-          "name": "1. List models",
+          "name": "GET /healthz",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/v1/models",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "models"]
+              "raw": "{{gateway_url}}/healthz",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
             },
-            "description": "Proves the **routing surface**: auth works (401 without the bearer key) and the model list includes `mock` (MockProvider) plus the Atlas aliases (`smart`, `deep`, `fast`, `balanced`, `embed`) and any locally wired Ollama models. Expect 200."
-          }
+            "description": "Liveness probe \u2014 open, no auth. Expect 200 `{\"status\":\"ok\"}`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "ok",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
         },
         {
-          "name": "2. Chat completion (mock)",
+          "name": "GET /v1/models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/v1/models",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "models"
+              ]
+            },
+            "description": "Routing surface: list includes `mock`, the provider model ids, and the Atlas aliases (`smart/deep/fast/balanced/embed`). 401 without the bearer key. Expect 200."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"data is array\", () => pm.expect(pm.response.json().data).to.be.an(\"array\"));",
+                  "pm.test(\"has mock\", () => pm.expect(pm.response.json().data.map(m=>m.id)).to.include(\"mock\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "model list",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"object\": \"list\",\n  \"data\": [\n    {\n      \"id\": \"mock\",\n      \"object\": \"model\",\n      \"owned_by\": \"mock\"\n    },\n    {\n      \"id\": \"smart\",\n      \"object\": \"model\",\n      \"owned_by\": \"atlas\"\n    },\n    {\n      \"id\": \"gpt-4o\",\n      \"object\": \"model\",\n      \"owned_by\": \"gpt-4o\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/chat/completions (mock)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/v1/chat/completions",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            },
+            "description": "A real call through the whole platform (auth -> ChatService -> provider) with zero spend. MockProvider echoes the last user message: expect 200 with `choices[0].message.content` = `[mock:mock] echo: <message>` and a populated `usage`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What does GDPR Article 6 require?\" }\n  ],\n  \"stream\": false\n}"
-            },
+              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"What does GDPR Article 6 require?\"\n    }\n  ],\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"mock echo\", () => pm.expect(pm.response.json().choices[0].message.content).to.include(\"[mock:mock] echo:\"));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "mock echo",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"chatcmpl-ebe5e2dd059c476d8b3214023025025f\",\n  \"created\": 1781305694,\n  \"model\": \"mock\",\n  \"object\": \"chat.completion\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"[mock:mock] echo: What does GDPR Article 6 require?\"\n      },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 6,\n    \"completion_tokens\": 7,\n    \"total_tokens\": 13\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/chat/completions (mock, streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/v1/chat/completions",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "chat", "completions"]
+              "raw": "{{gateway_url}}/v1/chat/completions",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
             },
-            "description": "Proves a **real call through the whole platform** — auth → ChatService (rate-limit/cache/guardrails when wired) → provider — with zero spend. MockProvider echoes the last user message: expect 200 with `choices[0].message.content` = `[mock:mock] echo: What does GDPR Article 6 require?` and a populated `usage` block."
+            "description": "Same endpoint with `stream: true` -> Server-Sent Events: a role chunk, content delta chunks, a final chunk with `finish_reason` + `usage`, then `data: [DONE]`. Postman shows the raw SSE stream. NOTE: streaming is deliberately NOT recorded by accounting, so it adds no `call_records` row.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Stream me something.\"\n    }\n  ],\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "sse",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/event-stream"
+                }
+              ],
+              "body": "data: {\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\ndata: {\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"[mock:mock]\"}}]}\n\ndata: [DONE]\n"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/chat/completions (alias: smart)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/v1/chat/completions",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            },
+            "description": "Same path routed via the Atlas alias `smart` to a real provider/model. Needs a provider key (or local Ollama alias) on the gateway; with the mock-only dev gateway this returns 404 (unknown model). Shown for the real routing shape \u2014 `max_tokens`/`temperature`/`prompt_ref`/`prompt_params` are also accepted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"smart\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a regulatory assistant.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Summarize REACH Annex XVII entry 27.\"\n    }\n  ],\n  \"max_tokens\": 256,\n  \"temperature\": 0.2,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           }
         },
         {
-          "name": "3. Usage (cost trail)",
+          "name": "POST /v1/embeddings (mock, single)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/v1/embeddings",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "embeddings"
+              ]
+            },
+            "description": "MockProvider implements `embed()` \u2014 expect 200 with one 8-dimensional vector in `data[0].embedding` (zero spend). Real embedding aliases (`embed`) need a provider key.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"input\": \"hello atlas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"8-dim\", () => pm.expect(pm.response.json().data[0].embedding).to.have.lengthOf(8));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "embedding",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"object\": \"list\",\n  \"model\": \"mock\",\n  \"data\": [\n    {\n      \"object\": \"embedding\",\n      \"index\": 0,\n      \"embedding\": [\n        0.12,\n        0.04,\n        0.91,\n        0.33,\n        0.58,\n        0.27,\n        0.7,\n        0.15\n      ]\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 2,\n    \"total_tokens\": 2\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/embeddings (mock, batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/v1/embeddings",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "embeddings"
+              ]
+            },
+            "description": "`input` also accepts a list of strings -> one vector per input, index-ordered.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mock\",\n  \"input\": [\n    \"first chunk\",\n    \"second chunk\",\n    \"third chunk\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"3 vectors\", () => pm.expect(pm.response.json().data).to.have.lengthOf(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/usage",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/v1/usage",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "usage"],
+              "raw": "{{gateway_url}}/v1/usage?since=2026-01-01",
+              "host": [
+                "{{gateway_url}}"
+              ],
+              "path": [
+                "v1",
+                "usage"
+              ],
               "query": [
                 {
                   "key": "since",
                   "value": "2026-01-01",
-                  "description": "Optional ISO date (YYYY-MM-DD); defaults to the 1st of the current month.",
-                  "disabled": true
+                  "description": "Optional ISO date (YYYY-MM-DD); defaults to 1st of current month."
                 }
               ]
             },
-            "description": "Proves the **cost trail**: per-app/model token + cost aggregates from the gateway's `call_records` table. Expect 200 with `{since, rows}` when the gateway has `ATLAS_DB_URL` configured (the compose stack wires it to the bundled Postgres; rows stay empty until the accounting recorder is wired into the request path). Without `ATLAS_DB_URL` (e.g. the standalone :8000 container) this returns **503 \"usage data unavailable: DB not configured\"** — config-gated by design, not a failure."
-          }
+            "description": "Cost trail: per-(app, model) token + cost aggregates from `call_records`. Expect 200 `{since, rows}` on the compose stack. On the standalone :8000 container (no `ATLAS_DB_URL`) returns 503 \"usage data unavailable: DB not configured\" \u2014 config-gated by design."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 or 503\", () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "usage",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"since\": \"2026-01-01\",\n  \"rows\": [\n    {\n      \"app\": \"locust\",\n      \"model\": \"deep\",\n      \"input_tokens\": 51672,\n      \"output_tokens\": 17310,\n      \"total_cost_usd\": \"0.69232150\"\n    }\n  ]\n}"
+            }
+          ]
         }
       ]
     },
     {
-      "name": "Riskier — test first",
-      "description": "Useful but with more moving parts — verify these before relying on them in demos.",
+      "name": "Agent Runtime",
+      "description": "Hand-rolled bounded agent loop (RegDoc Q&A). FastAPI trigger surface \u2014 **no auth**. Base `{{agent_url}}` (compose host :8083). A run executes synchronously inside the POST.",
       "item": [
         {
-          "name": "Embeddings (mock)",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"model\": \"mock\",\n  \"input\": \"hello atlas\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/embeddings",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "embeddings"]
-            },
-            "description": "MockProvider implements `embed()` too — expect 200 with one 8-dimensional vector in `data[0].embedding` (zero spend). `input` also accepts a list of strings. Real embedding aliases (`embed` → OpenAI) require a provider key."
-          }
-        },
-        {
-          "name": "Chat completion (mock, streaming)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Accept", "value": "text/event-stream" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"model\": \"mock\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Stream me something.\" }\n  ],\n  \"stream\": true\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/v1/chat/completions",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "chat", "completions"]
-            },
-            "description": "Same endpoint with `stream: true` → Server-Sent Events: a role chunk, content delta chunks, a final chunk with `finish_reason` + `usage`, then `data: [DONE]`. Postman shows the raw event stream in the response body (it won't pretty-print SSE) — that's expected."
-          }
-        },
-        {
-          "name": "Agent runtime — health",
+          "name": "GET /healthz",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{agentUrl}}/healthz",
-              "host": ["{{agentUrl}}"],
-              "path": ["healthz"]
+              "raw": "{{agent_url}}/healthz",
+              "host": [
+                "{{agent_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
             },
-            "description": "Liveness of the agent-runtime FastAPI surface (no auth). Expect 200 `{\"status\":\"ok\"}`. The agent-runtime realistically only runs via the compose stack (host :8083) — it needs the gateway and Postgres reachable by service name."
+            "description": "Liveness. Expect 200 `{\"status\":\"ok\"}`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "ok",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/agent/runs (regdoc-qa-mock)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{agent_url}}/v1/agent/runs",
+              "host": [
+                "{{agent_url}}"
+              ],
+              "path": [
+                "v1",
+                "agent",
+                "runs"
+              ]
+            },
+            "description": "Trigger a bounded run of the **offline** mock spec (`model_alias: mock`, zero spend). Expect **201** with `{run_id, status, iterations, tokens_used, content, responses}`. The test script saves `run_id` so the GET below can fetch it. 404 = unknown agent, 422 = a hard cap breached, 429/502 = upstream gateway error.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_name\": \"regdoc-qa-mock\",\n  \"user_message\": \"What does GDPR Article 6 require for consent?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "if (j.run_id) { pm.collectionVariables.set(\"run_id\", j.run_id); }",
+                  "pm.test(\"status\", () => pm.expect(j.status).to.be.oneOf([\"completed\",\"capped\"]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "completed",
+              "originalRequest": {},
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"run_id\": \"fffc8f96-992a-424f-ae2d-0743ee7cf96d\",\n  \"agent_name\": \"regdoc-qa-mock\",\n  \"agent_version\": \"1.0.0\",\n  \"status\": \"completed\",\n  \"iterations\": 1,\n  \"tokens_used\": 15,\n  \"elapsed_s\": 0.42,\n  \"content\": \"[mock:mock] echo: What does GDPR Article 6 require for consent?\",\n  \"responses\": [\n    \"[mock:mock] echo: What does GDPR Article 6 require for consent?\"\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/agent/runs (regdoc-qa)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{agent_url}}/v1/agent/runs",
+              "host": [
+                "{{agent_url}}"
+              ],
+              "path": [
+                "v1",
+                "agent",
+                "runs"
+              ]
+            },
+            "description": "The production spec \u2014 `model_alias: gpt-oss:120b-cloud` (local Ollama, free but needs Ollama on the host). The full RAG/citation path also needs MCP doc-search/citations + Qdrant/ES + an ingested corpus, so it may error/refuse locally. Use `regdoc-qa-mock` for a fully offline run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_name\": \"regdoc-qa\",\n  \"user_message\": \"What does GDPR Article 6 require for consent?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
           }
         },
         {
-          "name": "Agent runtime — run regdoc-qa",
+          "name": "GET /v1/agent/runs/{run_id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{agent_url}}/v1/agent/runs/{{run_id}}",
+              "host": [
+                "{{agent_url}}"
+              ],
+              "path": [
+                "v1",
+                "agent",
+                "runs",
+                "{{run_id}}"
+              ]
+            },
+            "description": "Fetch a persisted run + steps (uses the `run_id` captured by regdoc-qa-mock). 200 with `{status, token_budget, tokens_used, started_at, ended_at, steps[]}`; 404 = unknown run, 400 = bad UUID, 503 = persistence not configured.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200/404/503\", () => pm.expect(pm.response.code).to.be.oneOf([200,404,503]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "run status",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"run_id\": \"fffc8f96-992a-424f-ae2d-0743ee7cf96d\",\n  \"agent_name\": \"regdoc-qa-mock\",\n  \"agent_version\": \"1.0.0\",\n  \"status\": \"completed\",\n  \"token_budget\": 4096,\n  \"tokens_used\": 15,\n  \"started_at\": \"2026-06-13T05:00:00+00:00\",\n  \"ended_at\": \"2026-06-13T05:00:00.4+00:00\",\n  \"steps\": [\n    {\n      \"idx\": 0,\n      \"type\": \"llm_call\",\n      \"tokens\": 15,\n      \"latency_ms\": 12,\n      \"payload\": {}\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MCP \u00b7 doc-search",
+      "description": "MCP server over Streamable HTTP (FastMCP, single endpoint `POST {{mcp_docsearch_url}}/mcp`, JSON-RPC 2.0). **No auth.** Run these IN ORDER: every call needs both `Content-Type: application/json` and `Accept: application/json, text/event-stream` (a missing dual Accept -> 406). `initialize` returns an `Mcp-Session-Id` response header the test script captures into `{{mcp_docsearch_session}}`; every later call sends it back. Responses are SSE (`event: message` / `data: {...}`) \u2014 Postman shows them raw. Verified live: handshake works; tool is `doc_search`.",
+      "item": [
+        {
+          "name": "1. initialize",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_docsearch_url}}/mcp",
+              "host": [
+                "{{mcp_docsearch_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Open the MCP session. The test script saves the `Mcp-Session-Id` header into `{{mcp_docsearch_session}}` for the requests below.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"agent_name\": \"regdoc-qa\",\n  \"user_message\": \"What does GDPR Article 6 require for consent?\"\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"2025-06-18\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman\",\n      \"version\": \"1.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const sid = pm.response.headers.get(\"mcp-session-id\");",
+                  "if (sid) { pm.collectionVariables.set(\"mcp_docsearch_session\", sid); console.log(\"session:\", sid); }"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "initialize",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/event-stream"
+                },
+                {
+                  "key": "mcp-session-id",
+                  "value": "<captured>"
+                }
+              ],
+              "body": "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-06-18\",\"serverInfo\":{\"name\":\"atlas-doc-search\"},\"capabilities\":{\"tools\":{\"listChanged\":false}}}}\n"
+            }
+          ]
+        },
+        {
+          "name": "2. notifications/initialized",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_docsearch_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
             "url": {
-              "raw": "{{agentUrl}}/v1/agent/runs",
-              "host": ["{{agentUrl}}"],
-              "path": ["v1", "agent", "runs"]
+              "raw": "{{mcp_docsearch_url}}/mcp",
+              "host": [
+                "{{mcp_docsearch_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
-            "description": "Triggers a bounded agent run (hard caps on iterations/tokens/wall-time). Expect **201** with `{run_id, status, iterations, tokens_used, content, ...}`; follow up with `GET {{agentUrl}}/v1/agent/runs/<run_id>` for the persisted steps.\n\n**Dependencies — test before relying on it:** the agent container must reach the gateway (compose wires it), and the bundled spec's `model_alias` is `gpt-oss:120b-cloud` (local Ollama — free, but requires Ollama running on the host; edit `atlas-agent-runtime/agents/regdoc-qa.yaml` to `mock` for a fully offline run). The full RAG/citation path additionally depends on MCP doc-search/citations + Qdrant/Elasticsearch + an ingested corpus, so citation-grounded answers may error or refuse locally. Persistence (non-null `run_id` + the GET endpoint) needs the compose Postgres; 404 = unknown agent name, 422 = a hard cap was breached."
-          }
+            "description": "Required handshake completion (a notification \u2014 no `id`). Expect **202**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202\", () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. tools/list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_docsearch_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_docsearch_url}}/mcp",
+              "host": [
+                "{{mcp_docsearch_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "List the registered tools \u2014 expect one tool, `doc_search`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. tools/call doc_search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_docsearch_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_docsearch_url}}/mcp",
+              "host": [
+                "{{mcp_docsearch_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Hybrid BM25 + vector search (RRF). Args: `query` (1-2000 chars), `k` (1-50, default 8). Returns `{chunks: [{id, text, source_id, score}]}` as the SSE `data` payload.\n\n**Known local caveat:** doc_search embeds the query via the gateway `/v1/embeddings`. The running mcp-doc-search container has no `ATLAS_EMBED_MODEL`, so it requests a real embed model the mock-only gateway 404s on -> the tool returns `isError: true`. To make it work offline, set `ATLAS_EMBED_MODEL=mock` on the `mcp-doc-search` service in compose.dev.yaml and recreate it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"doc_search\",\n    \"arguments\": {\n      \"query\": \"nickel restriction in articles\",\n      \"k\": 5\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "MCP \u00b7 citations",
+      "description": "MCP server over Streamable HTTP (FastMCP, single endpoint `POST {{mcp_citations_url}}/mcp`, JSON-RPC 2.0). **No auth.** Run these IN ORDER: every call needs both `Content-Type: application/json` and `Accept: application/json, text/event-stream` (a missing dual Accept -> 406). `initialize` returns an `Mcp-Session-Id` response header the test script captures into `{{mcp_citations_session}}`; every later call sends it back. Responses are SSE (`event: message` / `data: {...}`) \u2014 Postman shows them raw. Verified live: returns exists:true for the seeded golden ids.",
+      "item": [
+        {
+          "name": "1. initialize",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_citations_url}}/mcp",
+              "host": [
+                "{{mcp_citations_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Open the MCP session. The test script saves the `Mcp-Session-Id` header into `{{mcp_citations_session}}` for the requests below.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"2025-06-18\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman\",\n      \"version\": \"1.0\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const sid = pm.response.headers.get(\"mcp-session-id\");",
+                  "if (sid) { pm.collectionVariables.set(\"mcp_citations_session\", sid); console.log(\"session:\", sid); }"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "initialize",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "text",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/event-stream"
+                },
+                {
+                  "key": "mcp-session-id",
+                  "value": "<captured>"
+                }
+              ],
+              "body": "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2025-06-18\",\"serverInfo\":{\"name\":\"atlas-mcp-citations\"},\"capabilities\":{\"tools\":{\"listChanged\":false}}}}\n"
+            }
+          ]
+        },
+        {
+          "name": "2. notifications/initialized",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_citations_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_citations_url}}/mcp",
+              "host": [
+                "{{mcp_citations_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Required handshake completion (a notification \u2014 no `id`). Expect **202**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"202\", () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. tools/list",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_citations_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_citations_url}}/mcp",
+              "host": [
+                "{{mcp_citations_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "List the registered tools \u2014 expect one tool, `verify_citation`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. tools/call verify_citation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_citations_session}}"
+              },
+              {
+                "key": "MCP-Protocol-Version",
+                "value": "2025-06-18"
+              }
+            ],
+            "url": {
+              "raw": "{{mcp_citations_url}}/mcp",
+              "host": [
+                "{{mcp_citations_url}}"
+              ],
+              "path": [
+                "mcp"
+              ]
+            },
+            "description": "Verify a `source_id` exists in the ingested corpus. Args: `source_id` (non-empty), `claim` (1-1000 chars). Returns `{exists: bool, snippet: string|null}`. Uses `{{demo_source_id}}` \u2014 a real golden id in the seeded corpus, so expect `exists: true` with a snippet. **Works fully offline** (no embeddings \u2014 pure Elasticsearch + Qdrant lookup by source_id).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"verify_citation\",\n    \"arguments\": {\n      \"source_id\": \"{{demo_source_id}}\",\n      \"claim\": \"Restriction on nickel release from articles.\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Platform Stores",
+      "description": "Poke the data plane directly to inspect what the seeders/traffic produced. **No auth** (except OpenObserve = Basic). Needs the stack seeded \u2014 run the seeders first (README \"Fill the databases\"). Curated handful, not an exhaustive mirror of these third-party APIs.",
+      "item": [
+        {
+          "name": "ES \u00b7 GET / (cluster info)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": []
+            },
+            "description": "Elasticsearch cluster info \u2014 confirms it's real ES (not the dropped OpenSearch).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ES \u00b7 GET /doc_chunks/_count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{es_url}}/doc_chunks/_count",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "doc_chunks",
+                "_count"
+              ]
+            },
+            "description": "Count chunks in the corpus index. Expect `{count: 200}` after a 40-doc seed.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"has chunks\", () => pm.expect(pm.response.json().count).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "count",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"count\": 200,\n  \"_shards\": {\n    \"total\": 1,\n    \"successful\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "ES \u00b7 POST /doc_chunks/_search (by source_id)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{es_url}}/doc_chunks/_search",
+              "host": [
+                "{{es_url}}"
+              ],
+              "path": [
+                "doc_chunks",
+                "_search"
+              ]
+            },
+            "description": "Search the corpus. NOTE: `source_id` is dynamically mapped as text+keyword, so an exact match must target **`source_id.keyword`** (a `term` on `source_id` is analyzed and won't match).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"size\": 2,\n  \"query\": {\n    \"term\": {\n      \"source_id.keyword\": \"{{demo_source_id}}\"\n    }\n  },\n  \"_source\": [\n    \"source_id\",\n    \"text\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Qdrant \u00b7 GET /collections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{qdrant_url}}/collections",
+              "host": [
+                "{{qdrant_url}}"
+              ],
+              "path": [
+                "collections"
+              ]
+            },
+            "description": "List Qdrant collections \u2014 expect `doc_chunks` (+ semantic-cache collections if any).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Qdrant \u00b7 GET /collections/doc_chunks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{qdrant_url}}/collections/doc_chunks",
+              "host": [
+                "{{qdrant_url}}"
+              ],
+              "path": [
+                "collections",
+                "doc_chunks"
+              ]
+            },
+            "description": "Collection info: `points_count` (~200 after seed) + vector params (size 8 mock, cosine).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "collection",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"result\": {\n    \"status\": \"green\",\n    \"points_count\": 200,\n    \"config\": {\n      \"params\": {\n        \"vectors\": {\n          \"size\": 8,\n          \"distance\": \"Cosine\"\n        }\n      }\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Qdrant \u00b7 POST points/scroll (by source_id)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{qdrant_url}}/collections/doc_chunks/points/scroll",
+              "host": [
+                "{{qdrant_url}}"
+              ],
+              "path": [
+                "collections",
+                "doc_chunks",
+                "points",
+                "scroll"
+              ]
+            },
+            "description": "Scroll points filtered by the `source_id` payload field \u2014 the same lookup the citations MCP server does. Returns matching points with payloads.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit\": 3,\n  \"with_payload\": true,\n  \"filter\": {\n    \"must\": [\n      {\n        \"key\": \"source_id\",\n        \"match\": {\n          \"value\": \"{{demo_source_id}}\"\n        }\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MLflow \u00b7 GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mlflow_url}}/health",
+              "host": [
+                "{{mlflow_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "MLflow tracking-server health.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MLflow \u00b7 GET experiments/search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mlflow_url}}/api/2.0/mlflow/experiments/search?max_results=20",
+              "host": [
+                "{{mlflow_url}}"
+              ],
+              "path": [
+                "api",
+                "2.0",
+                "mlflow",
+                "experiments",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "max_results",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "List MLflow experiments (eval/drift runs land here, e.g. `atlas-drift`).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenObserve \u00b7 GET /healthz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{openobserve_url}}/healthz",
+              "host": [
+                "{{openobserve_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "OpenObserve (Splunk substitute / OTLP sink) health \u2014 open endpoint.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenObserve \u00b7 GET /api/default/streams",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{openobserve_url}}/api/default/streams",
+              "host": [
+                "{{openobserve_url}}"
+              ],
+              "path": [
+                "api",
+                "default",
+                "streams"
+              ]
+            },
+            "description": "List ingest streams in the `default` org \u2014 **Basic auth** (`{{openobserve_user}}` / `{{openobserve_pass}}`). OTel spans/metrics land here.",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{openobserve_user}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{openobserve_pass}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

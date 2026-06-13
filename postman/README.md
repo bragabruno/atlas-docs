@@ -1,8 +1,52 @@
-# Atlas local API cheat-sheet (MockProvider — zero spend)
+# Atlas local API — Postman collection + curl cheat-sheet (MockProvider — zero spend)
 
-curl equivalents of [Atlas-Local.postman_collection.json](Atlas-Local.postman_collection.json).
-Every chat/embeddings call uses the gateway's built-in **MockProvider** (`model: "mock"`), so
-nothing here costs a cent or needs a provider key.
+Everything here exercises the **whole local stack** with zero API spend — chat/embeddings use the
+gateway's built-in **MockProvider** (`model: "mock"`), so nothing costs a cent or needs a provider key.
+
+## Postman
+
+Three files in this folder:
+
+| File | What |
+|---|---|
+| [Atlas-Local.postman_collection.json](Atlas-Local.postman_collection.json) | The collection — **30 requests in 5 folders**: Gateway, Agent Runtime, MCP · doc-search, MCP · citations, Platform Stores (ES/Qdrant/MLflow/OpenObserve). |
+| [Atlas-Local.postman_environment.json](Atlas-Local.postman_environment.json) | **"Atlas Local (compose)"** — every service on its host port + `dev-key`. Use with `make local-up`. |
+| [Atlas-Gateway-Standalone.postman_environment.json](Atlas-Gateway-Standalone.postman_environment.json) | **"Atlas Gateway Standalone (:8000)"** — for the gateway-only `docker run` (Option A). `/v1/usage` returns 503 there (no DB). |
+
+**Import:** in Postman, *Import* → drop all three files → pick the collection, then select an
+environment from the top-right dropdown. Run requests, or run a whole folder with the Collection Runner.
+
+- **Auth** is wired at the collection level (`Authorization: Bearer {{api_key}}`); gateway requests
+  inherit it, and agent-runtime / MCP / store requests override to No Auth (OpenObserve uses Basic).
+- **Variables** (`gateway_url`, `agent_url`, `mcp_docsearch_url`, `api_key`, `demo_source_id`, …) come
+  from the selected environment; `run_id` and `mcp_*_session` are filled in at runtime by test scripts.
+- **Lightweight tests** assert status + key fields on the smoke requests, so a folder run is a quick
+  health check. Newman: `newman run Atlas-Local.postman_collection.json -e Atlas-Local.postman_environment.json`.
+
+### MCP servers in Postman (doc-search :8081, citations :8082)
+
+The MCP servers speak **JSON-RPC 2.0 over Streamable HTTP** at a single `POST /mcp`. Run the four
+requests in each MCP folder **in order** — they share a session:
+
+1. **initialize** → 200; the response carries an `Mcp-Session-Id` header that the request's test
+   script saves into `{{mcp_<svc>_session}}`.
+2. **notifications/initialized** → 202 (completes the handshake).
+3. **tools/list** → the one tool (`doc_search` / `verify_citation`).
+4. **tools/call** → invoke it.
+
+Every call **must** send both `Content-Type: application/json` **and**
+`Accept: application/json, text/event-stream` (a missing dual Accept → 406), plus the captured
+`Mcp-Session-Id` and `MCP-Protocol-Version: 2025-06-18` on requests 2–4 — all pre-wired in the requests.
+Responses come back as SSE (`event: message` / `data: {…}`); Postman shows them raw.
+
+- **`verify_citation`** works fully offline (pure Elasticsearch + Qdrant lookup by `source_id`).
+- **`doc_search`** currently returns `isError: true` in the default local stack: it embeds the query via
+  the gateway's `/v1/embeddings`, but the running `mcp-doc-search` container has no `ATLAS_EMBED_MODEL`
+  set, so it requests a real embed model the mock-only gateway 404s on. To make it work offline, set
+  `ATLAS_EMBED_MODEL=mock` on the `mcp-doc-search` service in `compose.dev.yaml` and recreate it.
+
+> The **Platform Stores** folder needs the corpus seeded — run the seeders first (see
+> [Fill the databases](#fill-the-databases-mock-traffic--seeders) below).
 
 ## Bring the stack up
 

@@ -33,16 +33,16 @@ Following the framework evaluation (`../research/framework-evaluation.md`), thes
 
 | Epic   | Phase | Title                        | Primary repo(s)                  | Stories | Points |
 |--------|-------|------------------------------|----------------------------------|---------|--------|
-| `INF`  | P0    | Infra foundation (Azure/AKS) | atlas-infra (+all)               | 16      | 71     |
-| `GW`   | P1    | LLM Gateway core             | atlas-gateway                    | 22      | 92     |
+| `INF`  | P0    | Infra foundation (Azure/AKS) | atlas-infra (+all)               | 17      | 74     |
+| `GW`   | P1    | LLM Gateway core             | atlas-gateway                    | 23      | 93     |
 | `REG`  | P2    | Prompt registry + eval gate  | atlas-prompts (+gateway)         | 14      | 64     |
 | `GRD`  | P3    | Guardrails                   | atlas-gateway                    | 12      | 49     |
 | `AGT`  | P4    | Agent runtime + MCP          | atlas-agent-runtime, atlas-mcp-* | 16      | 80     |
 | `FE`   | P1→P4 | Frontend (RegDoc Q&A app)    | atlas-frontend                   | 9       | 27     |
 | `POL`  | P5    | Polish                       | atlas-gateway, atlas-infra       | 7       | 36     |
-| `XCUT` | —     | Cross-cutting / hardening    | atlas-docs, all                  | 6       | 20     |
+| `XCUT` | —     | Cross-cutting / hardening    | atlas-docs, all                  | 7       | 23     |
 
-**Totals: 102 stories · ~439 points.** Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21` (gateway online with Mock + published contract), then `REG` (the eval-gate demo). The basic chat UI (`FE-1..FE-5`) can start once `GW-7` (SSE) lands.
+**Totals: 105 stories · ~446 points.** Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21` (gateway online with Mock + published contract), then `REG` (the eval-gate demo). The basic chat UI (`FE-1..FE-5`) can start once `GW-7` (SSE) lands.
 
 ---
 
@@ -145,6 +145,12 @@ An **umbrella** Skaffold config in atlas-infra that builds each service from its
 `area:infra · type:feature · phase:p0 · repo:atlas-infra · Points: 3 · Depends on: INF-4, INF-5, INF-6, INF-7, INF-8, INF-9, INF-10, INF-11, INF-12, INF-13, INF-14, INF-15`
 `envs/dev` root composing all modules + `make cloud-up ENV=dev` / `make down` / `make destroy`; scale-to-zero CronJob; destroy-when-idle runbook. Deploys services from published ACR images (per-repo `deploy/` charts).
 **Done when:** a clean subscription reaches a working dev cluster via one command; teardown documented.
+
+### INF-17 — Optional local offline dev loop (docker-compose)
+
+`area:cicd · type:feature · phase:p0 · repo:atlas-infra · Points: 3 · Depends on: INF-15 · ADR-023`
+Optional local **offline** dev loop via `atlas-infra/local/compose.dev.yaml` (`make local-up` / `make local-down`) — free local equivalents for every paid service (Postgres, Valkey, Qdrant, OpenSearch, Redpanda, Azurite, lowkey-vault, MLflow, OpenObserve) + gateway + 2 MCP servers + frontend — **alongside, not replacing,** the Skaffold/AKS loop (INF-15). Adds the previously-missing gateway + agent-runtime Dockerfiles. See [`../research/local-mock-stack.md`](../research/local-mock-stack.md). *(In progress — compose + ADR-023 doc merged; frontend↔gateway needs GW-23 CORS; agent-runtime joins once containerized. BRA-875.)*
+**Done when:** `make local-up` brings the full stack up; the SPA→gateway chat works end-to-end; CI smoke-tests `docker compose config`.
 
 ---
 
@@ -283,6 +289,12 @@ Publish the gateway's OpenAPI spec as the cross-repo contract; generate a TS typ
 `area:gateway · type:chore · phase:p1 · repo:atlas-gateway · Points: 3 · Depends on: GW-6 · ADR-016`
 Layered service spine (api → services → repositories → domain) + FastAPI `Depends` DI (`api/deps.py`) + `providers/registry.py`; capability modules as adapters the service layer composes. Canonical reference for every Python service; behavior-preserving. *(Done — gateway refactored, 14 tests green; BRA-872.)*
 **Done when:** gateway follows api/services/repositories/domain; DI via deps.py; `UnknownModelError`→404 in the controller; tests green (ruff + pyright strict + pytest).
+
+### GW-23 — Config-gated gateway CORS
+
+`area:gateway · type:feature · phase:p1 · repo:atlas-gateway · Points: 1 · Depends on: GW-1`
+Optional, config-gated CORS (`ATLAS_CORS_ALLOW_ORIGINS`, default empty → no middleware added; same default-OFF philosophy as the cache/rate-limit gates) so browser SPAs (the INF-17 local frontend) can call the gateway cross-origin. `allow_credentials=False` (auth is header-based). *(In review — atlas-gateway #23; 321 tests green. BRA-876.)*
+**Done when:** a configured origin can call the gateway cross-origin; the default-off path is unchanged; tests cover it.
 
 ---
 
@@ -551,7 +563,7 @@ Scripted end-to-end demo + README (cited answer, refusal, runaway, trace).
 ### AGT-16 — Agent-runtime FastAPI trigger surface
 
 `area:agent · type:feature · phase:p4 · repo:atlas-agent-runtime · Points: 2 · Depends on: AGT-3 · ADR-020`
-Thin FastAPI surface: `POST /v1/agent/runs` (start) + `GET /v1/agent/runs/{id}` (poll status/result). Closes the gap that the runtime had no surface to receive a run request; reuses the layered convention (ADR-016) + OpenAPI contract (ADR-014). Async Kafka invocation (`atlas.agent.requests.v1`) deferred. *(BRA-873.)*
+Thin FastAPI surface: `POST /v1/agent/runs` (start) + `GET /v1/agent/runs/{id}` (poll status/result). Closes the gap that the runtime had no surface to receive a run request; reuses the layered convention (ADR-016) + OpenAPI contract (ADR-014). Async Kafka invocation (`atlas.agent.requests.v1`) deferred. *(Done — surface on `main`: `app/api/v1/runs.py` + `app/main.py` + contract/endpoint tests; BRA-873.)*
 **Done when:** a run starts + polls over HTTP; OpenAPI spec published; offline test via Mock; hard caps (ADR-006) still enforced.
 
 ---
@@ -702,8 +714,14 @@ Validate the threat model (atlas-docs/05) against the built system; add tests fo
 CI step that validates Mermaid (mermaid-cli) and PlantUML diagrams render, in atlas-docs and each repo's `docs/diagrams/`.
 **Done when:** a broken diagram fails CI; all current diagrams pass (38 Mermaid + 7 PlantUML already validated locally).
 
+### XCUT-7 — Build system + CI hardening
+
+`area:cicd · type:chore · repo:all · Points: 3 · Depends on: INF-1`
+Single-source build system across all 8 repos: **Trunk** linter front-end, `scripts/` + `Makefile` (`make ci`), per-repo Dockerfiles, a GitHub Actions mirror of the Bitbucket gates, and the strict Checkov/Trivy/TFLint IaC posture. Retroactively ticketed in the 2026-06-09 repo↔Linear audit. *(Done — merged to `main` in every repo; BRA-874.)*
+**Done when:** `make ci` runs the full gate locally and in CI; every repo green.
+
 ---
 
 ### Totals
 
-**102 stories · ~439 points** across 7 phase/area epics + cross-cutting, mapped over 8 repos. Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21`, then `REG` (the eval-gate demo). The chat UI (`FE-1..FE-5`) can begin as soon as `GW-7` lands.
+**105 stories · ~446 points** across 7 phase/area epics + cross-cutting, mapped over 8 repos. Suggested first slice (M1–M3): `INF-1 → INF-3..16`, then `GW-1..GW-9` + `GW-21`, then `REG` (the eval-gate demo). The chat UI (`FE-1..FE-5`) can begin as soon as `GW-7` lands.
